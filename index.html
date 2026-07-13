@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <link rel="manifest" href="manifest.webmanifest"/>
 <meta name="theme-color" content="#0f0d12"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -129,6 +131,18 @@
   .pulse-ic{width:18px;height:18px;border-radius:50%;border:2px solid #f6d77a;
     box-shadow:0 0 8px rgba(246,215,122,.8);animation:dotpulse 1.3s ease-out 4}
   @keyframes dotpulse{0%{transform:scale(.45);opacity:.95}100%{transform:scale(2.6);opacity:0}}
+  /* 지도 점 (divIcon) */
+  .wdot-ic{background:none;border:none}
+  .wdot-dot{display:block;width:12px;height:12px;border-radius:50%;
+    border:1.5px solid rgba(255,255,255,.85);box-shadow:0 0 3px rgba(0,0,0,.6);cursor:pointer;transition:filter .12s}
+  .leaflet-marker-icon.wdot-ic:hover .wdot-dot{filter:brightness(1.3) drop-shadow(0 0 4px rgba(255,255,255,.7))}
+  /* 클러스터 버블 (숫자) */
+  .wcl-wrap{background:none}
+  .wcl{display:flex;align-items:center;justify-content:center;border-radius:50%;
+    background:rgba(30,25,40,.92);border:2px solid var(--accent);color:#f4ead0;font-weight:800;
+    box-shadow:0 4px 16px rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+  .wcl small{font-size:.62em;opacity:.7;margin-left:1px}
+  .marker-cluster,.leaflet-cluster-anim .leaflet-marker-icon{transition:transform .2s ease}
   .lgbtn{cursor:pointer;user-select:none;padding:3px 9px;border-radius:8px;border:1px solid transparent}
   .lgbtn:hover{border-color:var(--line)}
   .lgbtn.off{opacity:.3}
@@ -772,8 +786,24 @@ const isCoarse=()=>window.matchMedia('(pointer:coarse)').matches;
 const smallScreen=()=>window.matchMedia('(max-width:640px)').matches;
 
 let map=null, popEl=null, originWine=null, originPanel=null;
-let dotLayer=null, lineLayer=null, markLayer=null, HOME=null;
+let dotsGroup=null, lineLayer=null, markLayer=null, HOME=null;
+let markerByIdx={};
 const DOTLL={};
+
+// 지도 점 아이콘 (작은 원)
+function dotIcon(w){
+  return L.divIcon({className:'wdot-ic',
+    html:`<i class="wdot-dot" style="background:${TYPE_COLOR[w.type]}"></i>`,
+    iconSize:[16,16], iconAnchor:[8,8]});
+}
+// 클러스터 버블 (겹친 점 개수 표시)
+function clusterIcon(cluster){
+  const n=cluster.getChildCount();
+  const size=n<10?34:(n<30?40:46);
+  return L.divIcon({className:'wcl-wrap',
+    html:`<div class="wcl" style="width:${size}px;height:${size}px;font-size:${n<10?0.9:0.82}rem">${n}</div>`,
+    iconSize:[size,size]});
+}
 
 function activeAnchors(){
   const set=new Set();
@@ -800,25 +830,26 @@ function dotLatLngs(){
   return out;
 }
 function drawDots(){
-  if(!map||!dotLayer)return;
-  dotLayer.clearLayers();
-  const ll=dotLatLngs();
-  Object.keys(DOTLL).forEach(k=>{if(!(k in ll))delete DOTLL[k];});
-  for(const i in ll)DOTLL[i]=ll[i];
-  const rad=isCoarse()?6:5;
-  for(const i in ll){
-    const w=WINES[i], dim=originWine!==null&&String(originWine)!==String(i);
-    const c=L.circleMarker(ll[i],{radius:rad,weight:1,color:'rgba(255,255,255,.85)',fillColor:TYPE_COLOR[w.type],fillOpacity:dim?0.22:0.95,opacity:dim?0.3:0.9,className:'wdot'});
-    c.bindTooltip(w.name+(w.vintage?' · '+w.vintage:''),{className:'wtip',direction:'top',offset:[0,-4],opacity:1});
-    c.on('click',ev=>{L.DomEvent.stop(ev);openPop(i);});
-    c.addTo(dotLayer);
-  }
+  if(!map||!dotsGroup)return;
+  dotsGroup.clearLayers();
+  markerByIdx={};
+  for(const k in DOTLL) delete DOTLL[k];
+  WINES.forEach((w,i)=>{
+    if(!w.rg||!mapFilter.has(w.type)||isDrunk(w)||!ANCHORS[w.rg])return;
+    const a=ANCHORS[w.rg], ll=L.latLng(a[0],a[1]);
+    DOTLL[i]=ll;
+    const mk=L.marker(ll,{icon:dotIcon(w),keyboard:false});
+    mk.bindTooltip(w.name+(w.vintage?' · '+w.vintage:''),{className:'wtip',direction:'top',offset:[0,-8],opacity:1});
+    mk.on('click',ev=>{L.DomEvent.stop(ev);openPop(i,ev.target);});
+    markerByIdx[i]=mk;
+    dotsGroup.addLayer(mk);
+  });
 }
 
 function closePop(){if(popEl){popEl.remove();popEl=null;}}
-function openPop(i){
+function openPop(i,marker){
   closePop();
-  const w=WINES[i], ll=DOTLL[i]; if(!ll||!map)return;
+  const w=WINES[i]; if(!map)return;
   const sh=shelfOf(w);
   const rat=[...(w.vivino?['Vivino ★'+w.vivino]:[]),...(w.ws?['WS평균 '+w.ws]:[]),...(w.ratings||[]).filter(r=>!(w.vivino&&r.startsWith('Vivino'))).slice(0,2)];
   popEl=document.createElement('div');popEl.className='map-pop';
@@ -837,10 +868,18 @@ function openPop(i){
   if(smallScreen())popEl.classList.add('sheet');
   mapbox.appendChild(popEl);
   if(!smallScreen()){
-    const pt=map.latLngToContainerPoint(ll);
+    let px,py;
+    if(marker&&marker._icon){                 // 실제 화면상 위치(스파이더 펼침 포함)
+      const r=marker._icon.getBoundingClientRect(), b=mapbox.getBoundingClientRect();
+      px=r.left-b.left+r.width/2; py=r.top-b.top+r.height/2;
+    }else{
+      const ll=DOTLL[i]||(ANCHORS[w.rg]&&L.latLng(ANCHORS[w.rg][0],ANCHORS[w.rg][1]));
+      const cp=ll?map.latLngToContainerPoint(ll):{x:mapbox.clientWidth/2,y:mapbox.clientHeight/2};
+      px=cp.x; py=cp.y;
+    }
     const bw=mapbox.clientWidth, bh=mapbox.clientHeight, pw=popEl.offsetWidth, ph=popEl.offsetHeight;
-    let left=pt.x+14, top=pt.y-ph/2;
-    if(left+pw>bw-8)left=pt.x-pw-14; if(left<8)left=8;
+    let left=px+14, top=py-ph/2;
+    if(left+pw>bw-8)left=px-pw-14; if(left<8)left=8;
     top=Math.max(8,Math.min(top,bh-ph-8));
     popEl.style.left=left+'px';popEl.style.top=top+'px';
   }
@@ -875,10 +914,10 @@ function renderOverlay(){
     });
   });
 }
-function clearOrigins(){originWine=null;if(originPanel){originPanel.remove();originPanel=null;}drawDots();renderOverlay();}
+function clearOrigins(){originWine=null;if(originPanel){originPanel.remove();originPanel=null;}renderOverlay();}
 function showOrigins(i){
   if(originPanel){originPanel.remove();originPanel=null;}
-  originWine=i;drawDots();renderOverlay();
+  originWine=i;renderOverlay();
   const w=WINES[i];
   let list='';
   (w.vars||[]).forEach(vk=>{
@@ -918,10 +957,16 @@ function focusOnMap(i){
   const w=WINES[i];if(!w.rg||!ANCHORS[w.rg])return;
   document.querySelector('.mapsec').scrollIntoView({behavior:'smooth',block:'start'});
   if(!map){return;}
-  if(!mapFilter.has(w.type)){mapFilter.add(w.type);updateLegend();}
-  const a=ANCHORS[w.rg];
-  map.once('moveend',()=>{drawDots();setTimeout(()=>{openPop(i);pulseAt(i);},140);});
-  map.setView([a[0],a[1]],Math.max(map.getZoom(),7),{animate:true});
+  if(!mapFilter.has(w.type)){mapFilter.add(w.type);updateLegend();drawDots();}
+  const open=()=>{ const mk=markerByIdx[i]; if(mk)openPop(i,mk); pulseAt(i); };
+  const mk=markerByIdx[i];
+  if(dotsGroup&&dotsGroup.zoomToShowLayer&&mk){
+    dotsGroup.zoomToShowLayer(mk,()=>setTimeout(open,180));
+  }else{
+    const a=ANCHORS[w.rg];
+    map.once('moveend',()=>{setTimeout(open,160);});
+    map.setView([a[0],a[1]],Math.max(map.getZoom(),7),{animate:true});
+  }
 }
 
 // 줌 버튼
@@ -941,11 +986,21 @@ document.getElementById('zreset').onclick=()=>{if(map&&HOME)map.fitBounds(HOME);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);} });
     carto.addTo(map);
     map.attributionControl.setPrefix(false);
-    dotLayer=L.layerGroup().addTo(map); lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
+    if(typeof L.markerClusterGroup==='function'){
+      dotsGroup=L.markerClusterGroup({
+        maxClusterRadius:46, showCoverageOnHover:false, zoomToBoundsOnClick:true,
+        spiderfyOnMaxZoom:true, spiderfyDistanceMultiplier:1.4,
+        spiderLegPolylineOptions:{weight:1.2,color:'#c9a94a',opacity:.55},
+        iconCreateFunction:clusterIcon
+      });
+      dotsGroup.on('clusterclick',closePop);
+    }else{
+      dotsGroup=L.layerGroup();   // 플러그인 미로드 시 폴백(개별 점)
+    }
+    dotsGroup.addTo(map); lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
     const aa=activeAnchors();
     HOME=aa.length?L.latLngBounds(aa).pad(0.28):L.latLngBounds([[-45,-125],[62,178]]);
     map.on('movestart zoomstart',closePop);
-    map.on('zoomend',()=>{drawDots();renderOverlay();});
     map.on('click',closePop);
     window.addEventListener('resize',()=>{if(map){map.invalidateSize();drawDots();}});
     map.whenReady(()=>{try{map.invalidateSize();map.fitBounds(HOME,{animate:false});}catch(_e){} updateLegend(); drawDots();});
