@@ -974,6 +974,43 @@ document.getElementById('zin').onclick=()=>{if(map)map.zoomIn();};
 document.getElementById('zout').onclick=()=>{if(map)map.zoomOut();};
 document.getElementById('zreset').onclick=()=>{if(map&&HOME)map.fitBounds(HOME);};
 
+// 클러스터 플러그인을 여러 CDN에서 재시도 로드 → 준비되면 dotsGroup 생성/그리기.
+// (플러그인이 끝내 안 뜨면 개별 점으로 폴백해서 지도 자체는 항상 동작)
+function ensureCluster(){
+  if(!map)return;
+  const make=(useCluster)=>{
+    if(dotsGroup){try{map.removeLayer(dotsGroup);}catch(e){}}
+    if(useCluster){
+      dotsGroup=L.markerClusterGroup({
+        maxClusterRadius:46, showCoverageOnHover:false, zoomToBoundsOnClick:true,
+        spiderfyOnMaxZoom:true, spiderfyDistanceMultiplier:1.4,
+        spiderLegPolylineOptions:{weight:1.2,color:'#c9a94a',opacity:.55},
+        iconCreateFunction:clusterIcon
+      });
+      dotsGroup.on('clusterclick',closePop);
+    }else{
+      dotsGroup=L.layerGroup();
+    }
+    dotsGroup.addTo(map);
+    drawDots();
+  };
+  if(typeof L.markerClusterGroup==='function'){ make(true); return; }
+  const urls=[
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js',
+    'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
+    'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'
+  ];
+  let i=0;
+  const tryNext=()=>{
+    if(i>=urls.length){ console.warn('클러스터 플러그인 로드 실패 — 개별 점으로 표시'); make(false); return; }
+    const s=document.createElement('script'); s.src=urls[i++]; s.async=true;
+    s.onload=()=>{ if(typeof L.markerClusterGroup==='function') make(true); else tryNext(); };
+    s.onerror=tryNext;
+    document.head.appendChild(s);
+  };
+  tryNext();
+}
+
 // ===== 지도 초기화 (실패해도 나머지 앱은 정상 동작) =====
 (function initMap(){
   try{
@@ -986,24 +1023,14 @@ document.getElementById('zreset').onclick=()=>{if(map&&HOME)map.fitBounds(HOME);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);} });
     carto.addTo(map);
     map.attributionControl.setPrefix(false);
-    if(typeof L.markerClusterGroup==='function'){
-      dotsGroup=L.markerClusterGroup({
-        maxClusterRadius:46, showCoverageOnHover:false, zoomToBoundsOnClick:true,
-        spiderfyOnMaxZoom:true, spiderfyDistanceMultiplier:1.4,
-        spiderLegPolylineOptions:{weight:1.2,color:'#c9a94a',opacity:.55},
-        iconCreateFunction:clusterIcon
-      });
-      dotsGroup.on('clusterclick',closePop);
-    }else{
-      dotsGroup=L.layerGroup();   // 플러그인 미로드 시 폴백(개별 점)
-    }
-    dotsGroup.addTo(map); lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
+    lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
     const aa=activeAnchors();
     HOME=aa.length?L.latLngBounds(aa).pad(0.28):L.latLngBounds([[-45,-125],[62,178]]);
     map.on('movestart zoomstart',closePop);
     map.on('click',closePop);
     window.addEventListener('resize',()=>{if(map){map.invalidateSize();drawDots();}});
-    map.whenReady(()=>{try{map.invalidateSize();map.fitBounds(HOME,{animate:false});}catch(_e){} updateLegend(); drawDots();});
+    map.whenReady(()=>{try{map.invalidateSize();map.fitBounds(HOME,{animate:false});}catch(_e){} updateLegend();});
+    ensureCluster();   // 클러스터 플러그인 로드(여러 CDN 재시도) 후 dotsGroup 생성·그리기
   }catch(e){
     console.error('지도 초기화 실패:',e);
     const el=document.getElementById('map');
