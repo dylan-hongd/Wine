@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest"/>
+<meta name="theme-color" content="#0f0d12"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Wine Cellar"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<link rel="icon" type="image/png" href="icon-192.png"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<title>Dylan's Wine Cellar · 와인 컬렉션</title>
+<style>
+  :root{
+    --bg:#0f0d12; --panel:#1a1720; --panel2:#221e2a; --line:#332d3d;
+    --ink:#f4f0f6; --muted:#a99fb5; --dim:#7d7488;
+    --red:#b6455f; --white-c:#c9a94a; --sparkle:#5fa8b6; --sake:#8a7bc8; --spirit:#c8783c;
+    --accent:#c9a94a;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;padding-bottom:60px}
+  a{color:inherit}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+
+  header{padding:48px 0 28px;text-align:center;border-bottom:1px solid var(--line);
+    background:radial-gradient(ellipse at top,rgba(201,169,74,.10),transparent 60%)}
+  header h1{font-size:2.1rem;font-weight:800;letter-spacing:-.02em}
+  header .sub{color:var(--muted);margin-top:8px;font-size:.98rem}
+  .stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:10px 18px;min-width:92px}
+  .stat b{display:block;font-size:1.5rem;font-weight:800}
+  .stat span{font-size:.78rem;color:var(--dim)}
+
+  .toolbar{position:sticky;top:0;z-index:20;background:rgba(15,13,18,.92);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:16px 0;margin-bottom:26px}
+  .toolbar .wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  #search{flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink);border-radius:10px;padding:11px 15px;font-size:.95rem;outline:none}
+  #search:focus{border-color:var(--accent)}
+  .filters{display:flex;gap:7px;flex-wrap:wrap}
+  .chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    border-radius:999px;padding:8px 15px;font-size:.86rem;cursor:pointer;transition:.15s;white-space:nowrap}
+  .chip:hover{border-color:var(--accent);color:var(--ink)}
+  .chip.active{background:var(--accent);color:#1a1208;border-color:var(--accent);font-weight:700}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:16px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+    display:flex;flex-direction:column}
+  .card::before{content:"";position:absolute;top:0;left:0;width:100%;height:4px;background:var(--red)}
+  .card.t-red::before{background:linear-gradient(90deg,#b6455f,#7d2d40)}
+  .card.t-white::before{background:linear-gradient(90deg,#d8bd5e,#b08f2e)}
+  .card.t-sparkling::before{background:linear-gradient(90deg,#7fc4d1,#4a8a9a)}
+  .card.t-sake::before{background:linear-gradient(90deg,#a495e0,#6b5ba8)}
+  .card.t-spirit::before{background:linear-gradient(90deg,#e0964a,#a85f22)}
+
+  .card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+  .card h2{font-size:1.16rem;font-weight:800;letter-spacing:-.01em;line-height:1.32}
+  .vintage{font-size:.82rem;color:var(--accent);font-weight:700;margin-top:2px}
+  .badge{flex-shrink:0;font-size:.7rem;font-weight:800;padding:4px 10px;border-radius:999px;
+    text-transform:uppercase;letter-spacing:.03em}
+  .badge.t-red{background:rgba(182,69,95,.18);color:#e78ba0}
+  .badge.t-white{background:rgba(201,169,74,.18);color:#e6cf7f}
+  .badge.t-sparkling{background:rgba(95,168,182,.18);color:#8fd4e0}
+  .badge.t-sake{background:rgba(138,123,200,.2);color:#b6a9ec}
+  .badge.t-spirit{background:rgba(200,120,60,.2);color:#e6a86a}
+  .qty{flex-shrink:0;font-size:.68rem;font-weight:800;padding:4px 9px;border-radius:999px;
+    background:rgba(255,255,255,.08);color:#f0d9a8;border:1px solid var(--line);margin-left:6px}
+
+  .meta{font-size:.85rem;color:var(--muted);margin:2px 0 12px}
+  .meta b{color:var(--ink);font-weight:600}
+  .shelf{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;
+    padding:5px 12px;border-radius:8px;margin-bottom:14px}
+  .shelf.cool{background:rgba(95,168,182,.14);color:#8fd4e0;border:1px solid rgba(95,168,182,.3)}
+  .shelf.warm{background:rgba(182,69,95,.13);color:#e78ba0;border:1px solid rgba(182,69,95,.3)}
+  .shelf.room{background:rgba(200,120,60,.13);color:#e6a86a;border:1px solid rgba(200,120,60,.3)}
+
+  .rows{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;gap:10px;font-size:.86rem;align-items:baseline}
+  .row .k{color:var(--dim);font-weight:600;flex:0 0 74px}
+  .row .v{color:#ddd6e4;flex:1 1 auto;min-width:0;word-break:keep-all;overflow-wrap:anywhere}
+
+  .struct{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .tag{background:var(--panel);border:1px solid var(--line);border-radius:7px;
+    padding:2px 9px;font-size:.76rem;color:var(--muted)}
+
+  .oneliner{margin-top:14px;padding:12px 14px;background:rgba(201,169,74,.07);
+    border-left:3px solid var(--accent);border-radius:8px;font-size:.87rem;color:#e8e0ee;font-style:italic}
+  .rating{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap}
+  .rate{font-size:.74rem;background:rgba(255,255,255,.05);border:1px solid var(--line);
+    border-radius:6px;padding:3px 8px;color:var(--muted)}
+  .price{margin-top:auto;padding-top:14px;font-size:.9rem;color:var(--accent);font-weight:700}
+
+  .empty{text-align:center;color:var(--dim);padding:60px 0;font-size:1rem;display:none}
+  footer{text-align:center;color:var(--dim);font-size:.8rem;margin-top:40px;padding-top:24px;
+    border-top:1px solid var(--line)}
+  /* ===== 세계 지도 ===== */
+  .mapsec{margin:26px auto 4px}
+  .map-title{font-size:1.05rem;font-weight:800;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
+  .map-title span{font-size:.8rem;color:var(--dim);font-weight:500}
+  .mapbox{position:relative;background:#0c0a10;border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+  #map{width:100%;height:560px;background:#0c0a10}
+  @media(max-width:720px){#map{height:400px}}
+  .leaflet-container{font-family:inherit;background:#0c0a10}
+  .leaflet-bar,.leaflet-bar a{background:#1a1720;color:var(--ink);border-color:var(--line)}
+  .leaflet-control-attribution{background:rgba(12,10,16,.62)!important;color:#6b6478!important;font-size:10px}
+  .leaflet-control-attribution a{color:#8a7f9c!important}
+  .wdot{cursor:pointer;transition:filter .12s}
+  .wdot:hover{filter:brightness(1.25) drop-shadow(0 0 4px rgba(255,255,255,.7))}
+  .leaflet-tooltip.wtip{background:#241e30;border:1px solid var(--accent);color:var(--ink);
+    font-weight:700;font-size:.76rem;box-shadow:0 6px 18px rgba(0,0,0,.5);padding:4px 8px}
+  .leaflet-tooltip.wtip::before{display:none}
+  .gdiamond{width:11px;height:11px;background:#c9a94a;border:1px solid #fff5d8;
+    transform:rotate(45deg);box-shadow:0 0 6px rgba(201,169,74,.7)}
+  .glabel-tip{background:rgba(20,16,28,.86);border:none;color:#f0e6c8;font-size:.72rem;
+    font-weight:600;padding:2px 6px;box-shadow:none;white-space:nowrap}
+  .glabel-tip::before{display:none}
+  .pulse-ic{width:18px;height:18px;border-radius:50%;border:2px solid #f6d77a;
+    box-shadow:0 0 8px rgba(246,215,122,.8);animation:dotpulse 1.3s ease-out 4}
+  @keyframes dotpulse{0%{transform:scale(.45);opacity:.95}100%{transform:scale(2.6);opacity:0}}
+  .lgbtn{cursor:pointer;user-select:none;padding:3px 9px;border-radius:8px;border:1px solid transparent}
+  .lgbtn:hover{border-color:var(--line)}
+  .lgbtn.off{opacity:.3}
+  .map-loadmsg{fill:#5f5670;font-size:13px}
+  .map-legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;padding:10px 14px;
+    font-size:.79rem;color:var(--muted);border-top:1px solid var(--line)}
+  .lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+  .lg i.dia{border-radius:2px;transform:rotate(45deg)}
+  .zoomctl{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;z-index:900}
+  .zbtn{width:32px;height:32px;border-radius:8px;background:rgba(26,23,32,.92);border:1px solid var(--line);
+    color:var(--ink);font-size:1.05rem;cursor:pointer;line-height:1}
+  .zbtn:hover{border-color:var(--accent)}
+  .map-pop{position:absolute;z-index:1200;width:272px;background:#241e30;border:1px solid var(--accent);
+    border-radius:12px;padding:14px;box-shadow:0 12px 34px rgba(0,0,0,.6);font-size:.83rem}
+  .map-pop h3{font-size:.95rem;font-weight:800;line-height:1.3;margin:2px 18px 2px 0}
+  .map-pop .pv{color:var(--accent);font-weight:700;font-size:.8rem}
+  .map-pop .pm{color:var(--muted);font-size:.8rem;margin-top:3px}
+  .map-close{position:absolute;top:8px;right:9px;background:none;border:none;color:var(--dim);
+    font-size:.95rem;cursor:pointer;padding:2px 4px}
+  .map-close:hover{color:var(--ink)}
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .mbtn{flex:1;text-align:center;background:var(--accent);color:#1a1208;font-weight:700;border:none;
+    border-radius:8px;padding:8px 6px;font-size:.79rem;cursor:pointer}
+  .mbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .mbtn:hover{filter:brightness(1.12)}
+  .origin-panel{position:absolute;right:10px;top:10px;z-index:1100;width:min(320px,72%);max-height:88%;overflow:auto;
+    background:rgba(30,25,40,.96);border:1px solid #8a7bc8;border-radius:12px;padding:14px;font-size:.81rem;
+    box-shadow:0 12px 34px rgba(0,0,0,.6)}
+  .origin-panel .ottl{font-weight:800;color:#c9b8f2;font-size:.9rem}
+  .origin-panel .ownm{font-weight:700;margin:4px 0 8px;line-height:1.35}
+  .oterr{background:rgba(138,123,200,.12);border-left:3px solid #8a7bc8;border-radius:6px;
+    padding:8px 10px;margin-bottom:10px;color:#ddd2f5}
+  .ovar{border-top:1px solid var(--line);padding:8px 0 2px;margin-top:6px}
+  .ovar b{color:#f0e6c8}
+  .ovar .opts{color:var(--accent);font-size:.76rem;margin:2px 0}
+  .ovar .onote{color:var(--muted);font-size:.77rem;line-height:1.5}
+  .gline{stroke:#c9a94a;stroke-dasharray:5 4;stroke-width:1.1;fill:none;opacity:.75;vector-effect:non-scaling-stroke}
+  .gdot{fill:#c9a94a;stroke:#fff;stroke-width:1;vector-effect:non-scaling-stroke}
+  .glabel{fill:#f0e6c8;paint-order:stroke;stroke:#141018;stroke-width:3px;font-weight:600}
+  .links{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .lnk{font-size:.73rem;color:var(--accent);border:1px solid var(--line);border-radius:6px;
+    padding:3px 10px;text-decoration:none}
+  .lnk:hover{border-color:var(--accent)}
+  .card.flash{animation:flashcard 2.6s ease}
+  @keyframes flashcard{0%,55%{box-shadow:0 0 0 3px var(--accent),var(--shadow)}100%{box-shadow:var(--shadow)}}
+  /* ===== 비교 기능 ===== */
+  .card{cursor:pointer}
+  .card.cmpsel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,169,74,.45),var(--shadow)}
+  .thumb{width:58px;height:78px;object-fit:cover;border-radius:8px;border:1px solid var(--line);
+    flex-shrink:0;cursor:zoom-in;background:#241e2e;margin-right:2px}
+  .thumb:hover{border-color:var(--accent)}
+  .cmpbtn{flex-shrink:0;width:27px;height:27px;border-radius:8px;background:transparent;
+    border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:.82rem;margin-left:6px;line-height:1}
+  .cmpbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .cmpbtn.on{background:var(--accent);color:#1a1208;border-color:var(--accent);font-weight:800}
+  .cmpbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;
+    background:#241e30;border:1px solid var(--accent);border-radius:999px;padding:9px 10px 9px 18px;
+    display:flex;gap:12px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.55);font-size:.87rem;white-space:nowrap}
+  .cmpbar .mbtn{flex:none;padding:7px 14px}
+  .cmpmodal{position:fixed;inset:0;z-index:70;background:rgba(10,8,14,.78);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;padding:18px}
+  .cmpwrap{background:var(--panel2);border:1px solid var(--line);border-radius:16px;max-width:1150px;
+    width:100%;max-height:90vh;overflow:auto;padding:22px;position:relative}
+  .cmptbl{width:100%;border-collapse:collapse;font-size:.84rem}
+  .cmptbl th,.cmptbl td{border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left;min-width:180px;line-height:1.55}
+  .cmptbl td:first-child{position:sticky;left:0;background:var(--panel2);min-width:84px;max-width:96px;
+    color:var(--dim);font-weight:700;z-index:2}
+  .cmptbl th{background:rgba(201,169,74,.09);font-weight:800}
+  .cmptbl th:first-child{position:sticky;left:0;background:var(--panel2);z-index:3}
+  /* ===== 정렬 · 관리 ===== */
+  #sortsel{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    padding:10px 12px;font-size:.88rem;cursor:pointer;outline:none}
+  #sortsel:focus{border-color:var(--accent)}
+  #addbtn{background:var(--accent);color:#1a1208;font-weight:800;border:none;border-radius:10px;
+    padding:10px 16px;font-size:.9rem;cursor:pointer;white-space:nowrap}
+  #addbtn:hover{filter:brightness(1.12)}
+  button.lnk{background:transparent;cursor:pointer;font-family:inherit}
+  .drunkband{background:rgba(200,120,60,.13);border-left:3px solid #c8783c;border-radius:6px;
+    padding:6px 10px;margin-bottom:12px;font-size:.8rem;color:#e6a86a;font-weight:700}
+  .card.drunk{opacity:.5;filter:grayscale(.55)}
+  .card.drunk::before{background:#5a5364}
+  .frm label{display:block;font-size:.78rem;color:var(--dim);margin:11px 0 4px;font-weight:600}
+  .frm input,.frm select,.frm textarea{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px 11px;font-size:.9rem;outline:none;font-family:inherit}
+  .frm input:focus,.frm select:focus,.frm textarea:focus{border-color:var(--accent)}
+  .frm .req{color:var(--red)}
+  .frm2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  @media(max-width:640px){
+    .mapbox svg{height:380px}
+    .map-pop.sheet{left:10px;right:10px;top:auto;bottom:10px;width:auto}
+    .origin-panel{left:10px;right:10px;top:auto;bottom:10px;width:auto;max-height:60%}
+    .map-title span{display:block;margin-top:3px}
+    .zoomctl{top:auto;bottom:56px}
+  }
+  @media(max-width:520px){.grid{grid-template-columns:1fr}.row{grid-template-columns:70px 1fr}}
+  /* ===== 로그인 게이트 ===== */
+  #authgate{position:fixed;inset:0;z-index:99999;background:radial-gradient(120% 90% at 50% 0%,#1a1522 0%,#0f0d12 60%);
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  .authcard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:20px;
+    padding:30px 26px;box-shadow:0 24px 70px rgba(0,0,0,.6);text-align:center}
+  .authlogo{font-size:2.4rem;line-height:1}
+  .authttl{font-size:1.3rem;font-weight:800;margin:10px 0 2px;letter-spacing:-.01em}
+  .authsub{color:var(--muted);font-size:.9rem;margin:16px 0 14px;font-weight:600}
+  #authgate input{width:100%;background:#14111a;border:1px solid var(--line);color:var(--ink);border-radius:11px;
+    padding:13px 14px;font-size:1rem;outline:none;margin-bottom:11px;font-family:inherit}
+  #authgate input:focus{border-color:var(--accent)}
+  .aubtn{width:100%;background:var(--accent);color:#1a1208;font-weight:800;border:none;border-radius:11px;
+    padding:14px;font-size:1rem;cursor:pointer;margin-top:2px}
+  .aubtn:hover{filter:brightness(1.08)}
+  .aubtn:disabled{opacity:.55;cursor:default}
+  .auerr{color:#e8879b;font-size:.83rem;min-height:1.1em;margin-top:10px}
+  .aulink{background:none;border:none;color:var(--accent);font-size:.83rem;cursor:pointer;margin-top:14px;text-decoration:underline}
+  .aunote{color:var(--dim);font-size:.76rem;margin-top:16px;line-height:1.6}
+  /* ===== 로그아웃 버튼 · 가져오기 배너 ===== */
+  #logoutbtn{position:fixed;top:12px;right:14px;z-index:5000;background:rgba(26,23,32,.9);border:1px solid var(--line);
+    color:var(--muted);border-radius:999px;padding:7px 13px;font-size:.78rem;cursor:pointer;backdrop-filter:blur(6px)}
+  #logoutbtn:hover{border-color:var(--accent);color:var(--ink)}
+  #importbar{background:rgba(201,169,74,.12);border:1px solid var(--accent);border-radius:12px;
+    padding:14px 16px;margin:0 0 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center}
+  #importbar b{color:var(--accent)}
+  #importbar button{background:var(--accent);color:#1a1208;font-weight:800;border:none;border-radius:9px;
+    padding:9px 16px;font-size:.86rem;cursor:pointer}
+  #importbar button:disabled{opacity:.6;cursor:default}
+</style>
+</head>
+<body>
+<div id="authgate">
+  <div class="authcard">
+    <div class="authlogo">🍷</div>
+    <div class="authttl">Dylan's Wine Cellar</div>
+
+    <div id="auth-login">
+      <div class="authsub">로그인</div>
+      <input id="au-email" type="email" placeholder="이메일" autocomplete="username" inputmode="email"/>
+      <input id="au-pw" type="password" placeholder="비밀번호" autocomplete="current-password"/>
+      <button id="au-signin" class="aubtn">로그인</button>
+      <div class="auerr" id="au-err"></div>
+      <button id="au-reset" class="aulink" type="button">비밀번호를 잊으셨나요?</button>
+      <div class="aunote">초대받은 이메일로만 로그인할 수 있어요.<br>초대 메일의 링크로 처음 비밀번호를 설정하세요.</div>
+    </div>
+
+    <div id="auth-setpw" style="display:none">
+      <div class="authsub">비밀번호 설정</div>
+      <input id="au-newpw" type="password" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password"/>
+      <button id="au-setpw-btn" class="aubtn">저장하고 시작하기</button>
+      <div class="auerr" id="au-setpw-err"></div>
+    </div>
+
+    <div id="auth-config" style="display:none">
+      <div class="authsub" style="color:#e0964a">⚙️ 설정이 필요해요</div>
+      <div class="aunote" style="font-size:.82rem">config.js 파일에 Supabase <b>URL</b>과 <b>anon</b> 키를 넣고 새로고침하세요. 자세한 방법은 배포 가이드를 참고하세요.</div>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <h1>🍷 Dylan's Cellar</h1>
+    <div class="sub">와인 · 샴페인 · 사케 · 위스키 컬렉션 · 필요할 때 검색하고, 상황에 맞게 추천받으세요</div>
+    <div class="stats" id="stats"></div>
+  </div>
+</header>
+
+<div class="wrap mapsec">
+  <div class="map-title">🌍 산지 지도 <span>점 클릭 → 요약 카드 · 범례 클릭 → 종류 필터 · 아래 카드 클릭 → 지도에 위치 표시</span></div>
+  <div class="mapbox" id="mapbox">
+    <div id="map" role="application" aria-label="와인 산지 지도"></div>
+    <div class="zoomctl">
+      <button class="zbtn" id="zin" title="확대">＋</button>
+      <button class="zbtn" id="zout" title="축소">－</button>
+      <button class="zbtn" id="zreset" title="처음으로">⟲</button>
+    </div>
+    <div class="map-legend" id="maplegend"></div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="wrap">
+    <input id="search" type="text" placeholder="🔍 와인명, 생산자, 지역, 품종, 음식으로 검색…" />
+    <div class="filters" id="filters"></div>
+    <select id="sortsel" title="정렬">
+      <option value="def">기본 정렬</option>
+      <option value="price-desc">💰 가격 높은순</option>
+      <option value="price-asc">💰 가격 낮은순</option>
+      <option value="window">⏳ 음용 적기 급한순</option>
+      <option value="rating">⭐ Vivino 평점순</option>
+      <option value="body-desc">🍷 바디 무거운순</option>
+      <option value="body-asc">🍷 바디 가벼운순</option>
+      <option value="tannin-desc">🫐 타닌 강한순</option>
+      <option value="acid-desc">🍋 산도 높은순</option>
+      <option value="sweet-desc">🍯 단맛 높은순</option>
+    </select>
+    <button id="addbtn" title="새 술 등록">＋ 등록</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty">검색 결과가 없습니다.</div>
+</div>
+
+<footer class="wrap">
+  마지막 업데이트: 2026년 7월 · 정보는 일반적인 시음 특성과 공개 자료 기준이며 빈티지·보관 상태에 따라 차이가 있을 수 있습니다.<br>
+  🍾 마신 기록과 ＋등록 내용은 <b>이 브라우저에 저장</b>됩니다. 원본 파일에 반영하려면 Claude에게 알려주세요.
+</footer>
+
+<script>
+// 와인 컬렉션 데이터
+let WINES = [];
+
+const TYPE_LABEL = {red:'레드',white:'화이트',sparkling:'샴페인·스파클링',sake:'사케',spirit:'위스키·증류주'};
+const TYPE_ORDER = ['red','white','sparkling','sake','spirit'];
+const LABELS = {
+  grape:{red:'품종',white:'품종',sparkling:'품종',sake:'쌀·정미',spirit:'원료·캐스크'},
+  temp:{red:'음용온도',white:'음용온도',sparkling:'음용온도',sake:'음용법',spirit:'음용법'},
+  window:{red:'음용시기',white:'음용시기',sparkling:'음용시기',sake:'보관·음용',spirit:'보관·음용'}
+};
+
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// 영문 라벨을 한글로도 검색할 수 있게 하는 별칭 사전
+const ALIASES = {
+  "Dom Pérignon":"돔페리뇽 돔 페리뇽","Veuve Clicquot":"뵈브클리코 뵈브 클리코","La Grande Dame":"라그랑담 그랑담",
+  "Krug":"크루그 크룩","Cristal":"크리스탈","Louis Roederer":"루이로드레 루이 로드레","Armand de Brignac":"아르망드브리냑 에이스오브스페이드 스페이드",
+  "Perrier-Jouët":"페리에주에 페리에 주에","Rare":"레어","Piper-Heidsieck":"파이퍼하이직 파이퍼","Devaux":"드보","Vollereaux":"볼로로","Marc Hébrart":"마크에브라","Benoît Dinvaut":"베누아 딘보","Crémant":"크레망",
+  "Balvenie":"발베니","Glenfiddich":"글렌피딕","Glenmorangie":"글렌모렌지","Ballantine":"발란타인 발렌타인","Kavalan":"카발란","Yamazaki":"야마자키","Clase Azul":"클라세아술 클라세아줄 데킬라 떼낄라","Bénédictine":"베네딕틴 베네딕틴돔",
+  "Silver Oak":"실버오크","Far Niente":"파니엔테","Rombauer":"롬바우어","Decoy":"디코이 덕혼","Carbone":"카르보네 파비아","Clos du Val":"클로뒤발","Ca' Momi":"카모미","Bread & Butter":"브레드앤버터","Robert Mondavi":"로버트몬다비 몬다비","Post & Beam":"포스트앤빔","Mazzei":"마체이 필립","Damilano":"다밀라노","Barolo":"바롤로","Franco Pacenti":"프랑코파첸티","Brunello":"브루넬로","San Marzano":"산마르자노 탈로","Onda":"온다","Vaso":"바소",
+  "Mongeard":"몽가르 라수퍼브","Hudelot":"위들로","Vosne-Romanée":"본로마네 본 로마네","Chassagne-Montrachet":"샤사뉴몽라셰 샤샤뉴","Wittmann":"비트만 비트만리슬링","Crystal Bay":"크리스탈베이","Maui":"마우이 마오리","Riesling":"리슬링","Cabernet":"카베르네","Chardonnay":"샤르도네","Sauvignon Blanc":"소비뇽블랑","Primitivo":"프리미티보","Pinot Noir":"피노누아 피노 누아","Champagne":"샴페인","Vint":"빈트"
+};
+function aliasText(name){let t='';for(const k in ALIASES){if(name.includes(k))t+=' '+ALIASES[k];}return t;}
+
+// 보관 위치: 위스키·증류주는 실온 별도 / 스파클링·사케·산뜻한 화이트는 10℃ 아래칸 / 레드·오크 화이트는 14℃ 위칸
+function shelfOf(w){
+  if(w.type==='spirit') return {c:'room', t:'🥃 실온 별도 보관'};
+  if(w.type==='sparkling'||w.type==='sake') return {c:'cool', t:'❄️ 아래 2칸 · 10℃'};
+  if(w.type==='red') return {c:'warm', t:'🌡️ 위 4칸 · 14℃'};
+  if(w.type==='white'){
+    const light=/소비뇽|리슬링/.test(w.grape||'');
+    return light? {c:'cool', t:'❄️ 아래 2칸 · 10℃'} : {c:'warm', t:'🌡️ 위 4칸 · 14℃'};
+  }
+  return null;
+}
+
+function render(list){
+  const grid=document.getElementById('grid');
+  grid.innerHTML='';
+  document.getElementById('empty').style.display = list.length? 'none':'block';
+  list.forEach(w=>{
+    const el=document.createElement('div');
+    el.className='card t-'+w.type+(isDrunk(w)?' drunk':'');
+    el.id='wine-'+WINES.indexOf(w);
+    let rows='';
+    const R=(k,v)=> v? `<div class="row"><div class="k">${k}</div><div class="v">${v}</div></div>`:'';
+    const structLabel = w.type==='sake'||w.type==='spirit' ? '특징' : '시음';
+    rows+=R(LABELS.grape[w.type], esc(w.grape));
+    if(w.struct) rows+=`<div class="row"><div class="k">${structLabel}</div><div class="v"><div class="struct">${w.struct.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div></div>`;
+    rows+=R('향·풍미', esc(w.aroma));
+    rows+=R(LABELS.temp[w.type], esc(w.temp));
+    rows+=R('페어링', esc(w.pairing));
+    rows+=R(LABELS.window[w.type], esc(w.window));
+    const allRat=[...(w.vivino?['Vivino ★'+w.vivino]:[]),...(w.ws?['WS평균 '+w.ws]:[]),...(w.ratings||[]).filter(r=>!(w.vivino&&r.startsWith('Vivino')))];
+    const rating = allRat.length? `<div class="rating">${allRat.map(r=>`<span class="rate">${esc(r)}</span>`).join('')}</div>`:'';
+    const lq=encodeURIComponent((w.name+' '+(/^\d{4}/.test(String(w.vintage||''))?w.vintage:'')).replace(/["“”()]/g,' ').replace(/\s+/g,' ').trim());
+    const links=`<div class="links">${
+      w.type==='spirit' ? `<a class="lnk" target="_blank" rel="noopener" href="https://www.whiskybase.com/search?q=${lq}">Whiskybase ↗</a>`
+      : w.type==='sake' ? ''
+      : `<a class="lnk" target="_blank" rel="noopener" href="https://www.vivino.com/search/wines?q=${lq}">Vivino ↗</a>`
+    }<a class="lnk" target="_blank" rel="noopener" href="https://www.wine-searcher.com/find/${lq}">Wine-Searcher ↗</a><button class="lnk drinkbtn">${isDrunk(w)?'↩ 되돌리기':(w.qty>1&&(w.left??w.qty)>1?'🍾 한 병 마셨어요':'🍾 마셨어요')}</button></div>`;
+    el.innerHTML=`
+      <div class="top">
+        ${w.img?`<img class="thumb" loading="lazy" src="${w.img}" alt="라벨" title="클릭하면 크게 보기">`:''}
+        <div style="flex:1;min-width:0"><h2>${esc(w.name)}</h2><div class="vintage">${esc(w.vintage||'')}</div></div>
+        <div style="display:flex;align-items:center;flex-shrink:0"><span class="badge t-${w.type}">${TYPE_LABEL[w.type]}</span>${w.qty&&w.qty>1?`<span class="qty">${(w.left??w.qty)}/${w.qty}병</span>`:''}<button class="cmpbtn" title="비교에 추가/제거">⚖</button></div>
+      </div>
+      <div class="meta"><b>${esc(w.producer)}</b> · ${esc(w.region)}</div>
+      ${isDrunk(w)?`<div class="drunkband">🍾 마신 술${w.drunkAt?' · '+esc(w.drunkAt):''}</div>`:''}
+      ${(()=>{const s=shelfOf(w);return s?`<div class="shelf ${s.c}">${s.t}</div>`:'';})()}
+      <div class="rows">${rows}</div>
+      ${w.oneliner? `<div class="oneliner">"${esc(w.oneliner)}"</div>`:''}
+      ${rating}
+      ${links}
+      ${w.price? `<div class="price">💰 ${esc(w.price)}</div>`:''}
+    `;
+    const wi=WINES.indexOf(w);
+    el.title='카드를 클릭하면 지도에서 위치를 표시합니다';
+    el.addEventListener('click',ev=>{if(ev.target.closest('a,button'))return;if(typeof focusOnMap==='function')focusOnMap(wi);});
+    const cb=el.querySelector('.cmpbtn');
+    if(cb)cb.onclick=ev=>{ev.stopPropagation();if(typeof toggleCmp==='function')toggleCmp(wi);};
+    const db=el.querySelector('.drinkbtn');
+    if(db)db.onclick=ev=>{ev.stopPropagation();isDrunk(w)?undrink(wi):drinkOne(wi);};
+    const tb=el.querySelector('.thumb');
+    if(tb)tb.onclick=ev=>{ev.stopPropagation();openLightbox(w);};
+    grid.appendChild(el);
+  });
+}
+
+let activeType='all';
+function apply(){
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  let list=WINES.filter(w=>{
+    if(!showDrunk && isDrunk(w)) return false;
+    if(activeType!=='all' && w.type!==activeType) return false;
+    if(!q) return true;
+    const sh=shelfOf(w);
+    return (w.name+' '+w.producer+' '+w.region+' '+w.grape+' '+(w.pairing||'')+' '+(w.aroma||'')+' '+TYPE_LABEL[w.type]+' '+(w.vintage||'')+' '+(w.window||'')+' '+aliasText(w.name)+' '+(sh?sh.t:'')).toLowerCase().includes(q);
+  });
+  // 정렬
+  const s=(document.getElementById('sortsel')||{}).value||'def';
+  const desc=f=>(a,b)=>((f(b)??-99)-(f(a)??-99));
+  const asc=f=>(a,b)=>((f(a)??99)-(f(b)??99));
+  if(s==='price-desc')list.sort(desc(priceNum));
+  else if(s==='price-asc')list.sort(asc(priceNum));
+  else if(s==='window')list.sort(asc(deadlineOf));
+  else if(s==='rating')list.sort(desc(w=>parseFloat(w.vivino)||null));
+  else if(s==='body-desc')list.sort(desc(bodyScore));
+  else if(s==='body-asc')list.sort(asc(bodyScore));
+  else if(s==='tannin-desc')list.sort(desc(tanninScore));
+  else if(s==='acid-desc')list.sort(desc(acidScore));
+  else if(s==='sweet-desc')list.sort(desc(sweetScore));
+  render(list);
+  if(typeof updateCmpUI==='function')updateCmpUI();
+}
+
+function buildUI(){
+  buildStats();
+  // filters
+  const f=document.getElementById('filters');
+  const chips=[['all','전체']].concat(TYPE_ORDER.map(t=>[t,TYPE_LABEL[t]]));
+  f.innerHTML=chips.map(([v,l],i)=>`<span class="chip${i===0?' active':''}" data-t="${v}">${l}</span>`).join('');
+  f.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    f.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');activeType=c.dataset.t;apply();
+  });
+  // 마신 기록 토글
+  const dc=document.createElement('span');
+  dc.className='chip';dc.id='drunkchip';dc.textContent='🍾 마신 기록';
+  dc.onclick=()=>{showDrunk=!showDrunk;dc.classList.toggle('active',showDrunk);apply();};
+  f.appendChild(dc);
+  document.getElementById('search').addEventListener('input',apply);
+  document.getElementById('sortsel').addEventListener('change',apply);
+  document.getElementById('addbtn').onclick=()=>{if(typeof openAdd==='function')openAdd();};
+  apply();
+}
+// ================= Vivino · Wine-Searcher 평점 =================
+// [이름 조각, 빈티지 조각(선택), {vivino, ws}]
+const RATE=[
+["Clos du Val",null,{vivino:"4.1"}], ["Ca' Momi",null,{vivino:"3.9"}], ["Bread & Butter",null,{vivino:"3.9"}],
+["Vaso by Dana",null,{vivino:"4.3"}], ["Onda by Dana",null,{vivino:"4.6"}],
+["Vint Buttery",null,{vivino:"4.0"}], ["Robert Mondavi",null,{vivino:"4.2"}],
+["Silver Oak Cabernet Sauvignon, Napa",null,{vivino:"4.5"}], ["Alexander Valley",null,{vivino:"4.4"}],
+["Post & Beam",null,{vivino:"4.2"}], ["Philip",null,{vivino:"4.1"}], ["Tator",null,{vivino:"4.1"}],
+["Damilano",null,{vivino:"4.2"}], ["Franco Pacenti",null,{vivino:"4.2"}], ["Talò",null,{vivino:"4.1"}],
+["La Superbe",null,{vivino:"3.8"}], ["Bourgogne Pinot Noir",null,{vivino:"4.0"}], ["Vosne-Romanée",null,{vivino:"4.1"}],
+["Far Niente",null,{vivino:"4.2",ws:"92"}], ["Rombauer",null,{vivino:"4.2",ws:"91"}],
+["Carbone",null,{vivino:"4.2",ws:"96"}], ["Decoy",null,{vivino:"3.7",ws:"88"}],
+["Crystal Bay",null,{vivino:"3.6"}], ["Chassagne",null,{vivino:"4.5"}],
+["Maui",null,{vivino:"3.9",ws:"91"}], ["Wittmann",null,{vivino:"4.0",ws:"93"}],
+["Dom Pérignon","2013",{vivino:"4.5",ws:"95"}], ["Dom Pérignon","2015",{vivino:"4.4",ws:"94"}],
+["La Grande Dame","2018",{vivino:"4.4",ws:"95"}], ["La Grande Dame","2015",{vivino:"4.4",ws:"94"}],
+["Cristal",null,{vivino:"4.5",ws:"96"}], ["Krug",null,{vivino:"4.6"}],
+["Armand de Brignac",null,{vivino:"4.4"}], ["Perrier-Jouët",null,{vivino:"4.2"}],
+["Rare Champagne",null,{vivino:"4.4"}], ["Devaux",null,{vivino:"4.0"}],
+["Rosé Sauvage",null,{vivino:"3.9"}], ["Vollereaux",null,{vivino:"4.0"}],
+["Hébrart",null,{vivino:"4.2"}], ["Dinvaut",null,{vivino:"4.1"}], ["Crémant d'Alsace",null,{vivino:"3.8"}]
+];
+function _enrichRate(){ WINES.forEach(w=>{
+  const hit=RATE.find(r=>w.name.includes(r[0])&&(!r[1]||String(w.vintage||'').includes(r[1])));
+  if(hit)Object.assign(w,hit[2]);
+}); }
+
+// (라벨 이미지는 이제 DB 각 행의 data.img 에 저장됩니다)
+function openLightbox(w){
+  if(!w.img)return;
+  const m=document.createElement('div');m.className='cmpmodal';
+  m.innerHTML=`<div style="text-align:center">
+    <img src="${w.img}" style="max-width:min(88vw,540px);max-height:80vh;border-radius:14px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <div style="margin-top:12px;font-weight:700">${esc(w.name)} <span style="color:var(--accent)">${esc(w.vintage||'')}</span></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',()=>m.remove());
+}
+
+// ================= 🍾 관리 (마신 기록 · 등록) — 브라우저 저장 =================
+let showDrunk=false;
+function kkey(w){return w.name+'|'+(w.vintage||'');}
+function isDrunk(w){return (w.left??(w.qty||1))<=0;}
+function drinkOne(i){
+  const w=WINES[i];
+  w.left=Math.max(0,(w.left??(w.qty||1))-1);
+  w.drunkAt=new Date().toISOString().slice(0,10);
+  dbSaveWine(w);buildStats();apply();drawDots();
+}
+function undrink(i){
+  const w=WINES[i];
+  w.left=Math.min(w.qty||1,(w.left||0)+1);
+  dbSaveWine(w);buildStats();apply();drawDots();
+}
+function buildStats(){
+  const alive=WINES.filter(w=>!isDrunk(w));
+  const bottles=alive.reduce((s,w)=>s+(w.left??w.qty??1),0);
+  const counts={};TYPE_ORDER.forEach(t=>counts[t]=alive.filter(w=>w.type===t).length);
+  const drunkN=WINES.length-alive.length;
+  document.getElementById('stats').innerHTML=
+    `<div class="stat"><b>${bottles}</b><span>보유 병수</span></div>`+
+    TYPE_ORDER.map(t=>`<div class="stat"><b>${counts[t]}</b><span>${TYPE_LABEL[t]}</span></div>`).join('')+
+    (drunkN?`<div class="stat"><b>${drunkN}</b><span>🍾 마심</span></div>`:'');
+}
+
+// ===== 정렬용 점수 파서 =====
+function priceNum(w){
+  const m=(w.price||'').match(/(\d+(?:\.\d+)?)\s*만/g);
+  if(!m)return null;
+  const v=m.map(x=>parseFloat(x));
+  return v.reduce((a,b)=>a+b,0)/v.length*10000;
+}
+function deadlineOf(w){
+  const t=w.window||'';
+  const yrs=t.match(/20\d\d/g);
+  if(yrs)return Math.max(...yrs.map(Number));
+  if(/신선|조기|즉시|수주|1~2년/.test(t))return 2026;
+  if(/장기 보관|안정/.test(t))return 2060;
+  if(/지금/.test(t))return 2027;
+  return 2030;
+}
+function _structStr(w){return (w.struct||[]).join(' · ');}
+function bodyScore(w){
+  const m=_structStr(w).match(/바디[^·]*/);if(!m)return null;const s=m[0];
+  if(/라이트~미디엄/.test(s))return 1.5;
+  if(/미디엄~풀/.test(s))return 2.5;
+  if(/풀에 가까/.test(s))return 2.7;
+  if(/라이트|가볍/.test(s))return 1;
+  if(/미디엄/.test(s))return 2;
+  if(/풀/.test(s))return 3;
+  return null;
+}
+function tanninScore(w){
+  const s=(w.struct||[]).find(x=>x.includes('타닌'));if(!s)return null;
+  if(/중~강/.test(s))return 2.5;
+  if(/강/.test(s))return 3;
+  if(/팽팽|견고|촘촘|정교/.test(s))return 2.6;
+  if(/중/.test(s))return 2;
+  if(/약/.test(s))return 1;
+  if(/부드|실키|섬세|녹아|원만/.test(s))return 1.4;
+  return null;
+}
+function acidScore(w){
+  const s=(w.struct||[]).find(x=>x.includes('산도'));if(!s)return null;
+  if(/매우 높/.test(s))return 3.5;
+  if(/높|생기|밝|신선|짜릿|팽팽/.test(s))return 3;
+  if(/중상/.test(s))return 2.5;
+  if(/중하/.test(s))return 1.5;
+  if(/중/.test(s))return 2;
+  if(/부드|원숙|원만|통합/.test(s))return 1.7;
+  return null;
+}
+function sweetScore(w){
+  const t=_structStr(w);
+  if(/스위트|달콤|꿀/.test(t))return 3;
+  if(/오프드라이|잔당|약간 단|단맛|리치/.test(t))return 2;
+  if(/Extra Brut|엑스트라/.test(t))return .8;
+  if(/드라이|Brut/.test(t))return 1;
+  return null;
+}
+
+// ===== ＋ 새 술 등록 =====
+const REGION_OPTS=[
+ ["napa","미국 · 나파 밸리"],["sonoma","미국 · 소노마"],["california","미국 · 캘리포니아 기타"],
+ ["oregon","미국 · 오리건"],["washington","미국 · 워싱턴"],["kentucky","미국 · 켄터키(버번)"],
+ ["bordeaux","프랑스 · 보르도"],["bourgogne","프랑스 · 부르고뉴"],["champagne","프랑스 · 샹파뉴"],
+ ["rhone","프랑스 · 론"],["loire","프랑스 · 루아르"],["alsace","프랑스 · 알자스"],["fecamp","프랑스 · 노르망디"],
+ ["piedmont","이탈리아 · 피에몬테"],["tuscany","이탈리아 · 토스카나"],["montalcino","이탈리아 · 몬탈치노"],
+ ["veneto","이탈리아 · 베네토"],["puglia","이탈리아 · 풀리아"],["sicily","이탈리아 · 시칠리아"],
+ ["rioja","스페인 · 리오하"],["mosel","독일 · 모젤"],["rheinhessen","독일 · 라인헤센"],
+ ["marlborough","뉴질랜드 · 말보로"],["canterbury","뉴질랜드 · 캔터베리"],["barossa","호주 · 바로사"],
+ ["mendoza","아르헨티나 · 멘도사"],["casablanca","칠레"],
+ ["speyside","스코틀랜드 · 스페이사이드"],["highland","스코틀랜드 · 하이랜드"],["islay","스코틀랜드 · 아일라"],["lowland","스코틀랜드 · 로우랜드"],
+ ["osaka","일본 · 오사카"],["niigata","일본 · 니가타"],["shizuoka","일본 · 시즈오카"],["yamaguchi","일본 · 야마구치"],
+ ["yilan","대만"],["jalisco","멕시코"]
+];
+function openAdd(){
+  const m=document.createElement('div');m.className='cmpmodal';
+  const typeOpts=TYPE_ORDER.map(t=>`<option value="${t}">${TYPE_LABEL[t]}</option>`).join('');
+  const regionOpts=`<option value="">지도에 표시 안 함</option>`+REGION_OPTS.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+  m.innerHTML=`<div class="cmpwrap frm" style="max-width:560px">
+    <button class="map-close" style="top:14px;right:16px;font-size:1.2rem">✕</button>
+    <h2 style="margin:0 0 4px;font-size:1.12rem">＋ 새 술 등록</h2>
+    <div style="color:var(--dim);font-size:.78rem">이 브라우저에 저장됩니다. 상세 시음 정보까지 채우려면 Claude에게 라벨 사진을 보내주세요.</div>
+    <label>이름 <span class="req">*</span></label><input id="f-name" placeholder="예: Opus One 2019">
+    <div class="frm2">
+      <div><label>종류</label><select id="f-type">${typeOpts}</select></div>
+      <div><label>빈티지</label><input id="f-vint" placeholder="예: 2019"></div>
+      <div><label>생산자</label><input id="f-prod" placeholder="예: Opus One Winery"></div>
+      <div><label>수량(병)</label><input id="f-qty" type="number" min="1" value="1"></div>
+    </div>
+    <label>지역(표기)</label><input id="f-region" placeholder="예: 미국 · 나파 밸리">
+    <label>지도 위치</label><select id="f-rg">${regionOpts}</select>
+    <label>품종·원료</label><input id="f-grape" placeholder="예: 카베르네 소비뇽 80%, 메를로 20%">
+    <label>가격대</label><input id="f-price" placeholder="예: 약 60만~70만 원">
+    <label>메모</label><textarea id="f-memo" rows="2" placeholder="선물받은 것, 시음 소감 등"></textarea>
+    <div class="btnrow" style="margin-top:16px">
+      <button class="mbtn" id="f-save">저장</button>
+      <button class="mbtn ghost" id="f-cancel">취소</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  const close=()=>m.remove();
+  m.querySelector('.map-close').onclick=close;
+  m.querySelector('#f-cancel').onclick=close;
+  m.addEventListener('click',e=>{if(e.target===m)close();});
+  m.querySelector('#f-save').onclick=()=>{
+    const g=id=>m.querySelector(id).value.trim();
+    const name=g('#f-name');
+    if(!name){m.querySelector('#f-name').style.borderColor='var(--red)';return;}
+    const q=Math.max(1,parseInt(g('#f-qty'))||1);
+    const w={
+      type:m.querySelector('#f-type').value, name:name, vintage:g('#f-vint'),
+      producer:g('#f-prod')||'—', region:g('#f-region')||'—', grape:g('#f-grape'),
+      price:g('#f-price'), oneliner:g('#f-memo'),
+      qty:q, left:q, rg:m.querySelector('#f-rg').value||undefined,
+      vars:[], ratings:['직접 등록'], _added:true
+    };
+    close();
+    dbInsertWine(w).then(id=>{ if(id){ WINES.push(w); buildStats();apply();drawDots(); setTimeout(()=>jumpToCard(WINES.length-1),150); } });
+  };
+}
+
+// ================= 🌍 산지 세계 지도 =================
+const SVGN='http://www.w3.org/2000/svg';
+const TYPE_COLOR={red:'#c85572',white:'#d8bd5e',sparkling:'#6fbccb',sake:'#a495e0',spirit:'#e0964a'};
+const mxx=lon=>(lon+180)/360*1000, myy=lat=>(90-lat)/180*500;
+
+const ANCHORS={
+ napa:[38.36,-122.36], sonoma:[38.61,-122.85], california:[36.7,-119.9],
+ maremma:[42.77,11.10], puglia:[40.42,17.75], piedmont:[44.61,7.94], montalcino:[43.06,11.49],
+ bourgogne:[47.05,4.85], champagne:[49.08,3.98], aube:[48.06,4.42], alsace:[48.16,7.30],
+ rheinhessen:[49.70,8.25], marlborough:[-41.51,173.87], canterbury:[-43.06,172.75],
+ shizuoka:[35.22,138.62], niigata:[37.45,138.85], yamaguchi:[34.17,132.22], osaka:[34.89,135.67],
+ jalisco:[20.9,-102.9], speyside:[57.45,-3.13], highland:[57.81,-4.06], lowland:[55.94,-4.57],
+ yilan:[24.75,121.74], fecamp:[49.76,0.37],
+ bordeaux:[44.85,-0.58], loire:[47.30,0.70], rhone:[44.93,4.85], mosel:[49.90,6.95], rioja:[42.40,-2.50],
+ tuscany:[43.40,11.30], veneto:[45.45,11.40], sicily:[37.55,14.10], mendoza:[-32.90,-68.85],
+ casablanca:[-33.32,-71.41], barossa:[-34.55,138.95], oregon:[45.20,-123.05], washington:[46.30,-119.30],
+ kentucky:[37.80,-85.47], islay:[55.75,-6.20]
+};
+
+// 품종·캐스크 기원 정의
+const VAR_DEFS={
+ cs:{n:"카베르네 소비뇽",pts:[[45.10,-0.80,"프랑스 보르도(메독)"]],note:"17세기 보르도에서 카베르네 프랑×소비뇽 블랑의 자연 교잡으로 탄생. 자갈 토양의 메독에서 명성을 확립한 품종."},
+ me:{n:"메를로",pts:[[44.92,-0.19,"보르도 우안(포므롤·생테밀리옹)"]],note:"점토·석회 토양의 보르도 우안이 본고장."},
+ cf:{n:"카베르네 프랑",pts:[[44.92,-0.24,"보르도 우안·루아르"]],note:"카베르네 소비뇽의 부모 품종."},
+ mb:{n:"말벡",pts:[[44.45,1.44,"프랑스 카오르"]],note:"원산지는 프랑스 카오르, 오늘날은 아르헨티나의 대표 품종."},
+ pv:{n:"프티 베르도",pts:[[45.10,-0.70,"보르도 메독"]],note:"블렌드에 색과 타닌, 향신료를 더하는 품종."},
+ pn:{n:"피노 누아",pts:[[47.06,4.86,"부르고뉴 코트 도르"]],note:"떼루아에 극도로 민감 — 같은 품종이라도 밭(클리마) 하나 차이로 향과 질감이 달라짐. 부르고뉴에는 1,200개 이상의 클리마가 등록되어 있음."},
+ gm:{n:"가메",pts:[[46.15,4.72,"보졸레"]],note:"가볍고 과일 향 가득한 보졸레의 품종."},
+ ch:{n:"샤르도네",pts:[[46.44,4.75,"부르고뉴 마코네(샤르도네 마을)"]],note:"이름 자체가 마코네의 '샤르도네' 마을에서 유래."},
+ sb:{n:"소비뇽 블랑",pts:[[47.33,2.83,"루아르(상세르)"]],note:"루아르·보르도가 원산, 뉴질랜드가 현대적 스타일을 개척."},
+ rs:{n:"리슬링",pts:[[50.00,7.90,"독일 라인가우"]],note:"독일 라인 유역 원산 — 산도와 장기 숙성의 제왕."},
+ nb:{n:"네비올로",pts:[[44.62,7.98,"피에몬테 랑게"]],note:"'안개(nebbia)'에서 이름이 유래한 피에몬테 토착 품종."},
+ sg:{n:"산지오베제",pts:[[43.32,11.33,"토스카나"]],note:"토스카나 토착 — 몬탈치노에서는 브루넬로 클론으로 정점에 오름."},
+ pr:{n:"프리미티보",pts:[[40.42,17.75,"이탈리아 풀리아"],[43.55,16.36,"크로아티아 카슈텔라(기원)"]],note:"DNA 분석 결과 크로아티아 츨레냐크 카슈텔란스키가 기원 — 미국 진판델과 동일 품종."},
+ mn:{n:"피노 뫼니에",pts:[[49.08,3.70,"샹파뉴 발레 드 라 마른"]],note:"샹파뉴에서 주로 쓰이는 조생 품종 — 과일감과 부드러움 담당."},
+ pb:{n:"피노 블랑·오세루아",pts:[[48.16,7.30,"알자스"]],note:"알자스 크레망의 기본 품종."},
+ ym:{n:"야마다니시키(주조미)",pts:[[34.90,134.97,"일본 효고현"]],note:"'주조호적미의 왕' — 효고현이 원산이자 최고 산지."},
+ gh:{n:"고햐쿠만고쿠(주조미)",pts:[[37.50,138.90,"일본 니가타현"]],note:"니가타 담려신구(깔끔·드라이) 스타일의 기반이 되는 쌀."},
+ ck_mad:{n:"마데이라 캐스크",pts:[[32.75,-16.97,"포르투갈 마데이라섬"]],note:"대서양 화산섬의 주정강화 와인을 담았던 통 — 캐러멜·건과일 뉘앙스를 입힘."},
+ ck_jz:{n:"셰리 캐스크",pts:[[36.68,-6.14,"스페인 헤레스"]],note:"올로로소·모스카텔·팔로 코르타도 등 셰리를 담았던 통 — 건포도·견과 풍미의 원천."},
+ ck_pt:{n:"포트 캐스크",pts:[[41.16,-7.79,"포르투갈 도우루"]],note:"포트와인 통 — 검붉은 과실과 진한 단맛을 입힘."},
+ ck_mz:{n:"미즈나라 오크",pts:[[43.06,142.90,"일본 홋카이도"]],note:"일본 물참나무 — 백단향·사찰의 향으로 불리는 동양적 향의 원천."}
+};
+
+// [이름 조각, {rg:지역, vars:[품종], terroir:설명}] — Vint/Onda는 이름 충돌 방지를 위해 앞쪽 배치
+const GEO=[
+["Vint Buttery",{rg:"california",vars:["ch"]}],
+["Onda by Dana",{rg:"napa",vars:["cs","me"]}],
+["Clos du Val",{rg:"napa",vars:["cs","me","mb"]}],
+["Ca' Momi",{rg:"napa",vars:["cs"]}],
+["Bread & Butter",{rg:"napa",vars:["cs"]}],
+["Vaso by Dana",{rg:"napa",vars:["cs","pv"]}],
+["Robert Mondavi",{rg:"napa",vars:["cs","cf"],terroir:"오크빌 To Kalon 벤치랜드 — 나파에서 가장 유서 깊은 카베르네 밭 중 하나."}],
+["Silver Oak Cabernet Sauvignon, Napa",{rg:"napa",vars:["cs","me"]}],
+["Alexander Valley",{rg:"sonoma",vars:["cs"]}],
+["Post & Beam",{rg:"napa",vars:["cs","me"]}],
+["Philip",{rg:"maremma",vars:["cs"],terroir:"토스카나 마렘마(벨과르도) — 해풍이 드는 해안 구릉지의 카베르네."}],
+["Tator",{rg:"puglia",vars:["pr"]}],
+["Damilano",{rg:"piedmont",vars:["nb"],terroir:"바롤로 'Liste' 단일 크뤼(라 모라 인근) — 석회질 이회토가 주는 견고한 구조."}],
+["Franco Pacenti",{rg:"montalcino",vars:["sg"],terroir:"몬탈치노 북사면 카날리키오 구역 — 서늘한 사면이 주는 신선함과 우아함."}],
+["Talò",{rg:"puglia",vars:["pr"]}],
+["La Superbe",{rg:"bourgogne",vars:["pn","gm"],terroir:"코토 부르기뇽 광역 AOC — 본-로마네 명가 몽자르-뮈네레가 만드는 데일리 라인."}],
+["Bourgogne Pinot Noir",{rg:"bourgogne",vars:["pn"],terroir:"샹볼-뮈지니 마을 기반 도멘 — 두 개의 리외디(lieu-dit) 밭 블렌드. 얇은 표토와 석회암이 주는 섬세함."}],
+["Vosne-Romanée",{rg:"bourgogne",vars:["pn"],terroir:"본-로마네 빌라주 — DRC·라 타슈 등 그랑크뤼가 밀집한 '부르고뉴의 심장'. 향신료와 벨벳 질감이 이 마을의 시그니처."}],
+["Far Niente",{rg:"napa",vars:["ch"]}],
+["Rombauer",{rg:"napa",vars:["ch"],terroir:"카네로스 — 샌파블로 만의 안개가 식혀주는 서늘한 샤르도네 산지."}],
+["Carbone",{rg:"napa",vars:["ch"],terroir:"쿰스빌 — 나파 남동부의 서늘한 화산성 토양. 미네랄과 산미의 원천."}],
+["Decoy",{rg:"california",vars:["ch"]}],
+["Crystal Bay",{rg:"marlborough",vars:["sb"]}],
+["Chassagne",{rg:"bourgogne",vars:["ch"],terroir:"샤사뉴-몽라셰 1er Cru — 몽라셰 그랑크뤼와 같은 석회암 능선에 자리한 프르미에 크뤼 밭."}],
+["Maui",{rg:"canterbury",vars:["sb"],terroir:"와이파라 밸리 — 말보로보다 따뜻한 북캔터베리. 열대과일 뉘앙스의 배경."}],
+["Wittmann",{rg:"rheinhessen",vars:["rs"],terroir:"베스트호펜 — 석회암 심토의 라인헤센 최상급 마을(모르슈타인·키르히슈필 등 GG 밭 보유)."}],
+["Dom Pérignon",{rg:"champagne",vars:["pn","ch"],terroir:"샹파뉴 그랑크뤼 백악질(초크) 토양 — 미네랄과 긴장감의 원천."}],
+["La Grande Dame",{rg:"champagne",vars:["pn","ch"],terroir:"뵈브 클리코 소유 8개 그랑크뤼 밭 중심 — 피노 누아 90%의 정체성."}],
+["Cristal",{rg:"champagne",vars:["pn","ch"],terroir:"루이 로드레 자가 그랑크뤼 밭(유기농·바이오다이나믹) — 백악 토양의 정밀한 미네랄."}],
+["Krug",{rg:"champagne",vars:["pn","ch","mn"]}],
+["Armand de Brignac",{rg:"champagne",vars:["pn","ch","mn"]}],
+["Perrier-Jouët",{rg:"champagne",vars:["mn","pn","ch"]}],
+["Rare Champagne",{rg:"champagne",vars:["ch","pn"]}],
+["Devaux",{rg:"aube",vars:["pn","ch"],terroir:"코트 데 바르(오브) — 샹파뉴 남부, 샤블리와 같은 키메리지세 석회 토양."}],
+["Rosé Sauvage",{rg:"champagne",vars:["pn","mn","ch"]}],
+["Vollereaux",{rg:"champagne",vars:["ch","pn"]}],
+["Hébrart",{rg:"champagne",vars:["pn","ch"],terroir:"마뢰이-쉬르-아이 프르미에 크뤼 — 피노 누아 명산지 아이(Aÿ) 바로 옆 마을."}],
+["Dinvaut",{rg:"champagne",vars:["mn","ch"]}],
+["Crémant d'Alsace",{rg:"alsace",vars:["pb"]}],
+["후지타카사고",{rg:"shizuoka",vars:["ym"]}],
+["쿠보타",{rg:"niigata",vars:["gh"]}],
+["닷사이",{rg:"yamaguchi",vars:["ym"]}],
+["Yamazaki",{rg:"osaka",vars:["ck_mz","ck_jz"]}],
+["Blender's Choice",{rg:"osaka",vars:["ck_mz"]}],
+["Master's Select",{rg:"osaka",vars:["ck_mz","ck_jz"]}],
+["Clase Azul",{rg:"jalisco",vars:[]}],
+["Madeira Cask",{rg:"speyside",vars:["ck_mad"]}],
+["Moscatel Cask",{rg:"speyside",vars:["ck_jz"]}],
+["Glenfiddich",{rg:"speyside",vars:["ck_jz"]}],
+["Glenmorangie",{rg:"highland",vars:[]}],
+["Kavalan",{rg:"yilan",vars:["ck_pt"]}],
+["Ballantine's 30",{rg:"lowland",vars:[]}],
+["Ballantine's 23",{rg:"lowland",vars:[]}],
+["Bénédictine",{rg:"fecamp",vars:[]}]
+];
+function _enrichGeo(){ let geoMiss=0;
+WINES.forEach(w=>{
+  const hit=GEO.find(g=>w.name.includes(g[0]));
+  if(hit){w.rg=hit[1].rg;w.vars=hit[1].vars||[];if(hit[1].terroir)w.terroir=hit[1].terroir;}
+  else if(!w.rg)geoMiss++;
+});
+if(geoMiss)console.warn('GEO 미매칭:',geoMiss); }
+function enrichAll(){ try{_enrichRate();}catch(e){console.error(e);} try{_enrichGeo();}catch(e){console.error(e);} }
+
+// ===== 지도 (Leaflet · 다크 타일) =====
+const mapbox=document.getElementById('mapbox');
+const mapFilter=new Set(TYPE_ORDER);
+const isCoarse=()=>window.matchMedia('(pointer:coarse)').matches;
+const smallScreen=()=>window.matchMedia('(max-width:640px)').matches;
+
+let map=null, popEl=null, originWine=null, originPanel=null;
+let dotLayer=null, lineLayer=null, markLayer=null, HOME=null;
+const DOTLL={};
+
+function activeAnchors(){
+  const set=new Set();
+  WINES.forEach(w=>{if(w.rg&&mapFilter.has(w.type)&&!isDrunk(w)&&ANCHORS[w.rg])set.add(w.rg);});
+  return [...set].map(rg=>ANCHORS[rg]);
+}
+
+// 같은 산지에 여러 병이 몰리면 화면 픽셀 기준으로 살짝 벌려줌
+function dotLatLngs(){
+  const byRg={}, out={};
+  if(!map)return out;
+  WINES.forEach((w,i)=>{if(!w.rg||!mapFilter.has(w.type)||isDrunk(w)||!ANCHORS[w.rg])return;(byRg[w.rg]=byRg[w.rg]||[]).push(i);});
+  const z=map.getZoom();
+  for(const rg in byRg){
+    const a=ANCHORS[rg], idxs=byRg[rg], center=map.project([a[0],a[1]],z);
+    if(idxs.length===1){out[idxs[0]]=map.unproject(center,z);continue;}
+    const r1=(isCoarse()?15:12), inner=Math.min(idxs.length,8), outer=idxs.length-inner;
+    idxs.forEach((idx,j)=>{
+      const isOut=j>=8, cnt=isOut?outer:inner, jj=isOut?j-8:j, rr=r1*(isOut?1.95:1);
+      const ang=(jj/cnt)*Math.PI*2-Math.PI/2;
+      out[idx]=map.unproject(L.point(center.x+rr*Math.cos(ang),center.y+rr*Math.sin(ang)),z);
+    });
+  }
+  return out;
+}
+function drawDots(){
+  if(!map||!dotLayer)return;
+  dotLayer.clearLayers();
+  const ll=dotLatLngs();
+  Object.keys(DOTLL).forEach(k=>{if(!(k in ll))delete DOTLL[k];});
+  for(const i in ll)DOTLL[i]=ll[i];
+  const rad=isCoarse()?6:5;
+  for(const i in ll){
+    const w=WINES[i], dim=originWine!==null&&String(originWine)!==String(i);
+    const c=L.circleMarker(ll[i],{radius:rad,weight:1,color:'rgba(255,255,255,.85)',fillColor:TYPE_COLOR[w.type],fillOpacity:dim?0.22:0.95,opacity:dim?0.3:0.9,className:'wdot'});
+    c.bindTooltip(w.name+(w.vintage?' · '+w.vintage:''),{className:'wtip',direction:'top',offset:[0,-4],opacity:1});
+    c.on('click',ev=>{L.DomEvent.stop(ev);openPop(i);});
+    c.addTo(dotLayer);
+  }
+}
+
+function closePop(){if(popEl){popEl.remove();popEl=null;}}
+function openPop(i){
+  closePop();
+  const w=WINES[i], ll=DOTLL[i]; if(!ll||!map)return;
+  const sh=shelfOf(w);
+  const rat=[...(w.vivino?['Vivino ★'+w.vivino]:[]),...(w.ws?['WS평균 '+w.ws]:[]),...(w.ratings||[]).filter(r=>!(w.vivino&&r.startsWith('Vivino'))).slice(0,2)];
+  popEl=document.createElement('div');popEl.className='map-pop';
+  popEl.innerHTML=`<button class="map-close">✕</button>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><span class="badge t-${w.type}">${TYPE_LABEL[w.type]}</span>${w.qty>1?`<span class="qty">×${w.qty}</span>`:''}</div>
+    <h3>${esc(w.name)}</h3>
+    <div class="pv">${esc(w.vintage||'')}</div>
+    <div class="pm">${esc(w.producer)} · ${esc(w.region)}</div>
+    ${sh?`<div class="shelf ${sh.c}" style="margin:9px 0 0">${sh.t}</div>`:''}
+    ${rat.length?`<div class="rating" style="margin-top:9px">${rat.map(r=>`<span class="rate">${esc(r)}</span>`).join('')}</div>`:''}
+    ${w.price?`<div class="price" style="padding-top:9px;margin-top:0">💰 ${esc(w.price)}</div>`:''}
+    <div class="btnrow">
+      <button class="mbtn" data-a="detail">상세 정보 ↓</button>
+      ${w.vars&&w.vars.length?`<button class="mbtn ghost" data-a="origin">${w.type==='spirit'?'🛢️ 캐스크 기원':'🍇 품종·떼루아'}</button>`:''}
+    </div>`;
+  if(smallScreen())popEl.classList.add('sheet');
+  mapbox.appendChild(popEl);
+  if(!smallScreen()){
+    const pt=map.latLngToContainerPoint(ll);
+    const bw=mapbox.clientWidth, bh=mapbox.clientHeight, pw=popEl.offsetWidth, ph=popEl.offsetHeight;
+    let left=pt.x+14, top=pt.y-ph/2;
+    if(left+pw>bw-8)left=pt.x-pw-14; if(left<8)left=8;
+    top=Math.max(8,Math.min(top,bh-ph-8));
+    popEl.style.left=left+'px';popEl.style.top=top+'px';
+  }
+  popEl.querySelector('.map-close').onclick=closePop;
+  popEl.querySelector('[data-a=detail]').onclick=()=>{closePop();jumpToCard(i);};
+  const ob=popEl.querySelector('[data-a=origin]');
+  if(ob)ob.onclick=()=>{closePop();showOrigins(i);};
+}
+function jumpToCard(i){
+  document.getElementById('search').value='';
+  activeType='all';
+  document.querySelectorAll('#filters .chip').forEach(c=>c.classList.toggle('active',c.dataset.t==='all'));
+  apply();
+  const el=document.getElementById('wine-'+i);
+  if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+}
+
+// 품종·캐스크 기원 연결선
+function renderOverlay(){
+  if(!map||!lineLayer)return;
+  lineLayer.clearLayers();markLayer.clearLayers();
+  if(originWine===null)return;
+  const w=WINES[originWine], p0=DOTLL[originWine]; if(!p0)return;
+  (w.vars||[]).forEach(vk=>{
+    const v=VAR_DEFS[vk]; if(!v)return;
+    v.pts.forEach(pt=>{
+      const dest=L.latLng(pt[0],pt[1]);
+      L.polyline([p0,dest],{color:'#c9a94a',weight:1.4,opacity:.75,dashArray:'4 5'}).addTo(lineLayer);
+      L.marker(dest,{icon:L.divIcon({className:'gdiamond-wrap',html:'<div class="gdiamond"></div>',iconSize:[11,11],iconAnchor:[6,6]}),interactive:false}).addTo(markLayer);
+      L.tooltip({permanent:true,direction:'right',offset:[8,0],className:'glabel-tip',interactive:false})
+        .setLatLng(dest).setContent(v.n+' · '+pt[2]).addTo(markLayer);
+    });
+  });
+}
+function clearOrigins(){originWine=null;if(originPanel){originPanel.remove();originPanel=null;}drawDots();renderOverlay();}
+function showOrigins(i){
+  if(originPanel){originPanel.remove();originPanel=null;}
+  originWine=i;drawDots();renderOverlay();
+  const w=WINES[i];
+  let list='';
+  (w.vars||[]).forEach(vk=>{
+    const v=VAR_DEFS[vk]; if(!v)return;
+    list+=`<div class="ovar"><b>${v.n}</b><div class="opts">📍 ${v.pts.map(p=>p[2]).join(' · ')}</div>${v.note?`<div class="onote">${v.note}</div>`:''}</div>`;
+  });
+  originPanel=document.createElement('div');originPanel.className='origin-panel';
+  originPanel.innerHTML=`<button class="map-close">✕</button>
+    <div class="ottl">${w.type==='spirit'?'🛢️ 캐스크 기원':'🍇 품종 · 기원'}</div>
+    <div class="ownm">${esc(w.name)} ${esc(w.vintage||'')}</div>
+    ${w.terroir?`<div class="oterr"><b>떼루아</b> — ${esc(w.terroir)}</div>`:''}
+    ${list}`;
+  mapbox.appendChild(originPanel);
+  originPanel.querySelector('.map-close').onclick=clearOrigins;
+}
+
+// 범례 (클릭 → 종류 필터)
+function updateLegend(){
+  document.getElementById('maplegend').innerHTML=
+    TYPE_ORDER.map(t=>`<span class="lg lgbtn${mapFilter.has(t)?'':' off'}" data-t="${t}"><i style="background:${TYPE_COLOR[t]}"></i>${TYPE_LABEL[t]}</span>`).join('')
+    +`<span class="lg"><i class="dia" style="background:#c9a94a"></i>품종·캐스크 기원</span>`;
+  document.querySelectorAll('#maplegend .lgbtn').forEach(b=>b.onclick=()=>{
+    const t=b.dataset.t;
+    if(mapFilter.has(t)){if(mapFilter.size>1)mapFilter.delete(t);}else mapFilter.add(t);
+    if(originWine!==null&&!mapFilter.has(WINES[originWine].type))clearOrigins();
+    updateLegend();closePop();drawDots();renderOverlay();
+  });
+}
+
+// 카드 → 지도 위치 표시
+function pulseAt(i){
+  const ll=DOTLL[i];if(!ll||!markLayer)return;
+  const m=L.marker(ll,{icon:L.divIcon({className:'pulse-wrap',html:'<div class="pulse-ic"></div>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(markLayer);
+  setTimeout(()=>markLayer.removeLayer(m),5600);
+}
+function focusOnMap(i){
+  const w=WINES[i];if(!w.rg||!ANCHORS[w.rg])return;
+  document.querySelector('.mapsec').scrollIntoView({behavior:'smooth',block:'start'});
+  if(!map){return;}
+  if(!mapFilter.has(w.type)){mapFilter.add(w.type);updateLegend();}
+  const a=ANCHORS[w.rg];
+  map.once('moveend',()=>{drawDots();setTimeout(()=>{openPop(i);pulseAt(i);},140);});
+  map.setView([a[0],a[1]],Math.max(map.getZoom(),7),{animate:true});
+}
+
+// 줌 버튼
+document.getElementById('zin').onclick=()=>{if(map)map.zoomIn();};
+document.getElementById('zout').onclick=()=>{if(map)map.zoomOut();};
+document.getElementById('zreset').onclick=()=>{if(map&&HOME)map.fitBounds(HOME);};
+
+// ===== 지도 초기화 (실패해도 나머지 앱은 정상 동작) =====
+(function initMap(){
+  try{
+    if(typeof L==='undefined')throw new Error('Leaflet 라이브러리 로드 실패');
+    map=L.map('map',{center:[25,8],zoom:2,zoomControl:false,worldCopyJump:true,minZoom:2,maxZoom:12,zoomSnap:.25,wheelPxPerZoomLevel:90});
+    let tileErr=0, fellBack=false;
+    const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {subdomains:'abcd',maxZoom:20,detectRetina:true,attribution:'© OpenStreetMap · © CARTO'});
+    carto.on('tileerror',()=>{ if(fellBack)return; if(++tileErr>=3){fellBack=true;
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);} });
+    carto.addTo(map);
+    map.attributionControl.setPrefix(false);
+    dotLayer=L.layerGroup().addTo(map); lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
+    const aa=activeAnchors();
+    HOME=aa.length?L.latLngBounds(aa).pad(0.28):L.latLngBounds([[-45,-125],[62,178]]);
+    map.on('movestart zoomstart',closePop);
+    map.on('zoomend',()=>{drawDots();renderOverlay();});
+    map.on('click',closePop);
+    window.addEventListener('resize',()=>{if(map){map.invalidateSize();drawDots();}});
+    map.whenReady(()=>{try{map.invalidateSize();map.fitBounds(HOME,{animate:false});}catch(_e){} updateLegend(); drawDots();});
+  }catch(e){
+    console.error('지도 초기화 실패:',e);
+    const el=document.getElementById('map');
+    if(el)el.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;color:#8a7f9c;font-size:.9rem;line-height:1.7">🌐 지도를 불러오지 못했어요.<br>인터넷(지도 서버 접근)을 확인한 뒤 새로고침해 주세요.</div>';
+    try{updateLegend();}catch(_e){}
+  }
+})();
+
+// ===== ⚖ 비교 기능 =====
+const cmpSel=new Set();
+const cmpBar=document.createElement('div');
+cmpBar.className='cmpbar';cmpBar.style.display='none';
+cmpBar.innerHTML=`<span id="cmpcount"></span><button class="mbtn" id="cmpgo">비교하기</button><button class="mbtn ghost" id="cmpclear">지우기</button>`;
+document.body.appendChild(cmpBar);
+cmpBar.querySelector('#cmpgo').onclick=()=>openCmp();
+cmpBar.querySelector('#cmpclear').onclick=()=>{cmpSel.clear();updateCmpUI();};
+function toggleCmp(i){cmpSel.has(i)?cmpSel.delete(i):cmpSel.add(i);updateCmpUI();}
+function updateCmpUI(){
+  cmpBar.style.display=cmpSel.size?'flex':'none';
+  const c=document.getElementById('cmpcount');
+  if(c)c.textContent=`⚖ ${cmpSel.size}개 선택`+(cmpSel.size<2?' · 2개 이상 고르세요':cmpSel.size>4?' (비교는 앞 4개)':'');
+  document.querySelectorAll('.card').forEach(el=>{
+    const i=+el.id.replace('wine-','');
+    el.classList.toggle('cmpsel',cmpSel.has(i));
+    const b=el.querySelector('.cmpbtn');if(b)b.classList.toggle('on',cmpSel.has(i));
+  });
+}
+function openCmp(){
+  if(cmpSel.size<2)return;
+  const ids=[...cmpSel].slice(0,4);
+  const rows=[
+    ['종류',w=>TYPE_LABEL[w.type]+(w.qty>1?' ×'+w.qty:'')],
+    ['빈티지',w=>w.vintage||'—'],
+    ['생산자',w=>w.producer||'—'],
+    ['지역',w=>w.region||'—'],
+    ['품종·원료',w=>w.grape||'—'],
+    ['시음',w=>(w.struct||[]).join(' · ')||'—'],
+    ['향·풍미',w=>w.aroma||'—'],
+    ['음용 온도',w=>w.temp||'—'],
+    ['페어링',w=>w.pairing||'—'],
+    ['음용 시기',w=>w.window||'—'],
+    ['평점',w=>[...(w.vivino?['Vivino ★'+w.vivino]:[]),...(w.ws?['WS평균 '+w.ws]:[]),...(w.ratings||[]).filter(r=>!(w.vivino&&r.startsWith('Vivino')))].join(' · ')||'—'],
+    ['가격대',w=>w.price||'—'],
+    ['보관',w=>{const s=shelfOf(w);return s?s.t:'—';}],
+    ['한줄평',w=>w.oneliner||'—']
+  ];
+  const th=ids.map(i=>{const w=WINES[i];return `<th>${w.img?`<img src="${w.img}" style="width:76px;height:102px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block;margin-bottom:8px">`:''}${esc(w.name)}<div style="color:var(--accent);font-size:.76rem;font-weight:700">${esc(w.vintage||'')}</div></th>`;}).join('');
+  const body=rows.map(([k,f])=>`<tr><td>${k}</td>${ids.map(i=>`<td>${esc(f(WINES[i]))}</td>`).join('')}</tr>`).join('');
+  const m=document.createElement('div');m.className='cmpmodal';
+  m.innerHTML=`<div class="cmpwrap"><button class="map-close" style="top:14px;right:16px;font-size:1.2rem">✕</button>
+    <h2 style="margin:0 0 14px;font-size:1.12rem">⚖ 비교 (${ids.length}종)</h2>
+    <table class="cmptbl"><tr><th></th>${th}</tr>${body}</table></div>`;
+  document.body.appendChild(m);
+  m.querySelector('.map-close').onclick=()=>m.remove();
+  m.addEventListener('click',e=>{if(e.target===m)m.remove();});
+}
+
+// (지도 배경은 CARTO 다크 타일이 담당 — 별도 로더 불필요)
+
+function refreshAll(){
+  enrichAll();
+  buildStats(); apply();
+  if(typeof updateLegend==='function') updateLegend();
+  if(typeof drawDots==='function') drawDots();
+  if(map){ try{ const aa=activeAnchors(); if(aa.length){ HOME=L.latLngBounds(aa).pad(0.28); map.fitBounds(HOME,{animate:false}); } map.invalidateSize(); }catch(e){} }
+}
+buildUI();
+</script>
+<script>
+/* ===== 인증 + Supabase 데이터층 =====
+   기존 앱 로직(WINES, refreshAll 등)은 전역에 있고, 여기서 로그인/DB를 담당합니다. */
+(function(){
+  const CFG = window.CELLAR_CONFIG || {};
+  const initialHash = location.hash || '';
+  let pendingSetPw = /type=(invite|recovery)/.test(initialHash);
+
+  const gate = document.getElementById('authgate');
+  const $ = (id)=>document.getElementById(id);
+  const show = (id,on)=>{ const e=$(id); if(e) e.style.display = on?'':'none'; };
+
+  function showGate(mode){
+    gate.style.display='flex';
+    show('auth-login', mode==='login');
+    show('auth-setpw', mode==='setpw');
+    show('auth-config', mode==='config');
+    if(mode==='login') setTimeout(()=>{ const e=$('au-email'); if(e&&!e.value) e.focus(); },50);
+  }
+  function hideGate(){ gate.style.display='none'; }
+
+  // ---- 설정 안 됐으면 안내 후 중단 ----
+  const notSet = !window.supabase || !CFG.SUPABASE_URL || /여기에/.test(CFG.SUPABASE_URL||'');
+  if(notSet){ showGate('config'); return; }
+
+  const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  window._sb = sb;
+  let loaded = false;
+
+  // ---------- DB 연산 (로직 스크립트에서 전역으로 호출) ----------
+  window.loadWines = async function(){
+    const { data, error } = await sb.from('wines').select('id,data').order('created_at',{ascending:true});
+    if(error){ console.error(error); alert('데이터를 불러오지 못했어요: '+error.message); return; }
+    WINES = (data||[]).map(r => Object.assign({}, r.data, { _id: r.id }));
+  };
+  window.dbInsertWine = async function(w){
+    const payload = Object.assign({}, w); delete payload._id;
+    const { data, error } = await sb.from('wines').insert({ data: payload }).select('id').single();
+    if(error){ console.error(error); alert('저장하지 못했어요: '+error.message); return null; }
+    w._id = data.id; return data.id;
+  };
+  window.dbSaveWine = async function(w){
+    if(!w._id) return window.dbInsertWine(w);
+    const payload = Object.assign({}, w); delete payload._id;
+    const { error } = await sb.from('wines').update({ data: payload }).eq('id', w._id);
+    if(error){ console.error(error); }
+  };
+
+  async function importSeed(btn){
+    if(btn){ btn.disabled=true; btn.textContent='가져오는 중…'; }
+    try{
+      const res = await fetch('seed.json'); const seed = await res.json();
+      const rows = seed.map(w => ({ data: w }));
+      for(let i=0;i<rows.length;i+=8){
+        const { error } = await sb.from('wines').insert(rows.slice(i,i+8));
+        if(error) throw error;
+        if(btn) btn.textContent = `가져오는 중… ${Math.min(i+8,rows.length)}/${rows.length}`;
+      }
+      await window.loadWines(); refreshAll(); renderChrome();
+    }catch(e){
+      console.error(e); alert('가져오기 실패: '+(e.message||e));
+      if(btn){ btn.disabled=false; btn.textContent='기존 데이터 가져오기'; }
+    }
+  }
+
+  // ---------- 로그인 후 화면 구성 ----------
+  function renderChrome(){
+    // 로그아웃 버튼
+    if(!$('logoutbtn')){
+      const b=document.createElement('button'); b.id='logoutbtn'; b.textContent='로그아웃';
+      b.onclick=()=>sb.auth.signOut();
+      document.body.appendChild(b);
+    }
+    // 가져오기 배너 (주인 이메일 + 셀러 비어있을 때만)
+    const email = (window._session && window._session.user && window._session.user.email) || '';
+    const isOwner = CFG.OWNER_EMAIL && email && email.toLowerCase()===CFG.OWNER_EMAIL.toLowerCase();
+    const existing = $('importbar');
+    if(isOwner && Array.isArray(WINES) && WINES.length===0){
+      if(!existing){
+        const bar=document.createElement('div'); bar.id='importbar';
+        bar.innerHTML='<span>기존 <b>56병</b> 컬렉션을 이 계정으로 가져올까요?</span><button id="importgo">기존 데이터 가져오기</button>';
+        const tb=document.querySelector('.toolbar')||document.querySelector('.mapsec');
+        if(tb&&tb.parentNode) tb.parentNode.insertBefore(bar, tb);
+        else document.body.insertBefore(bar, document.body.firstChild);
+        $('importgo').onclick=(e)=>importSeed(e.target);
+      }
+    } else if(existing){ existing.remove(); }
+  }
+
+  async function afterLogin(session){
+    window._session = session;
+    hideGate();
+    if(!loaded){ await window.loadWines(); loaded=true; }
+    try{ refreshAll(); }catch(e){ console.error(e); }
+    renderChrome();
+  }
+
+  // ---------- 인증 상태 ----------
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event==='PASSWORD_RECOVERY'){ pendingSetPw=true; showGate('setpw'); return; }
+    if(event==='SIGNED_OUT'){ loaded=false; WINES=[]; try{refreshAll();}catch(e){} const lb=$('logoutbtn'); if(lb)lb.remove(); const ib=$('importbar'); if(ib)ib.remove(); showGate('login'); return; }
+    if(session){ if(pendingSetPw) showGate('setpw'); else afterLogin(session); }
+  });
+
+  (async ()=>{
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(pendingSetPw){ showGate('setpw'); return; }
+      if(session) afterLogin(session); else showGate('login');
+    }catch(e){ console.error(e); showGate('login'); }
+  })();
+
+  // ---------- 폼 배선 ----------
+  function busy(btn,on,label){ btn.disabled=on; if(on){btn.dataset._t=btn.textContent;btn.textContent=label;} else if(btn.dataset._t){btn.textContent=btn.dataset._t;} }
+
+  $('au-signin').onclick = async ()=>{
+    const email=$('au-email').value.trim(), pw=$('au-pw').value;
+    const err=$('au-err'); err.textContent='';
+    if(!email||!pw){ err.textContent='이메일과 비밀번호를 입력하세요.'; return; }
+    busy($('au-signin'),true,'로그인 중…');
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    busy($('au-signin'),false);
+    if(error) err.textContent = /Invalid/.test(error.message)?'이메일 또는 비밀번호가 올바르지 않아요.':error.message;
+  };
+  $('au-pw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('au-signin').click(); });
+
+  $('au-reset').onclick = async ()=>{
+    const email=$('au-email').value.trim(); const err=$('au-err');
+    if(!email){ err.textContent='먼저 이메일을 입력하세요.'; return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+    err.style.color = error?'#e8879b':'#8bd7a0';
+    err.textContent = error? error.message : '재설정 메일을 보냈어요. 메일함을 확인하세요.';
+  };
+
+  $('au-setpw-btn').onclick = async ()=>{
+    const pw=$('au-newpw').value; const err=$('au-setpw-err'); err.textContent='';
+    if(!pw||pw.length<6){ err.textContent='6자 이상으로 설정하세요.'; return; }
+    busy($('au-setpw-btn'),true,'저장 중…');
+    const { data, error } = await sb.auth.updateUser({ password: pw });
+    busy($('au-setpw-btn'),false);
+    if(error){ err.textContent=error.message; return; }
+    pendingSetPw=false; try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+    const { data:{ session } } = await sb.auth.getSession();
+    afterLogin(session);
+  };
+})();
+
+// ---------- 서비스워커 등록 (PWA) ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 등록 실패',e)); });
+}
+
+</script>
+</body>
+</html>

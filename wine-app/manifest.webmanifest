@@ -1,0 +1,17 @@
+{
+  "name": "Dylan's Wine Cellar",
+  "short_name": "Wine Cellar",
+  "description": "나만의 와인 셀러 · 컬렉션 관리와 산지 지도",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f0d12",
+  "theme_color": "#0f0d12",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
