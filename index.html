@@ -1077,8 +1077,14 @@ buildUI();
    기존 앱 로직(WINES, refreshAll 등)은 전역에 있고, 여기서 로그인/DB를 담당합니다. */
 (function(){
   const CFG = window.CELLAR_CONFIG || {};
-  const initialHash = location.hash || '';
-  let pendingSetPw = /type=(invite|recovery)/.test(initialHash);
+  // 초대/재설정 링크 파라미터 파싱 (해시·쿼리 양쪽 지원)
+  const _hp = new URLSearchParams((location.hash||'').replace(/^#/,''));
+  const _qp = new URLSearchParams(location.search||'');
+  const authType = _hp.get('type') || _qp.get('type') || '';     // invite | recovery | signup | magiclink
+  const urlErr   = _hp.get('error_description') || _qp.get('error_description') || '';
+  const tokenHash= _qp.get('token_hash') || '';
+  let pendingSetPw = (authType==='invite' || authType==='recovery');
+  function cleanUrl(){ try{ history.replaceState(null,'',location.pathname); }catch(e){} }
 
   const gate = document.getElementById('authgate');
   const $ = (id)=>document.getElementById(id);
@@ -1178,8 +1184,25 @@ buildUI();
 
   (async ()=>{
     try{
+      // 링크에 에러가 실려온 경우(만료·이미 사용 등)
+      if(urlErr){
+        cleanUrl(); showGate('login');
+        const e=$('au-err'); if(e){ e.style.color='#e8879b'; e.textContent='링크가 만료됐거나 이미 사용됐어요. 다시 요청해 주세요.'; }
+        return;
+      }
+      // 신형 이메일 링크(token_hash) 처리
+      if(tokenHash && authType){
+        const { error } = await sb.auth.verifyOtp({ type: authType, token_hash: tokenHash });
+        cleanUrl();
+        if(error){
+          showGate('login');
+          const e=$('au-err'); if(e){ e.style.color='#e8879b'; e.textContent='초대/재설정 링크가 만료됐거나 유효하지 않아요. 다시 받아주세요.'; }
+          return;
+        }
+        if(pendingSetPw){ showGate('setpw'); return; }
+      }
       const { data:{ session } } = await sb.auth.getSession();
-      if(pendingSetPw){ showGate('setpw'); return; }
+      if(pendingSetPw && session){ showGate('setpw'); return; }
       if(session) afterLogin(session); else showGate('login');
     }catch(e){ console.error(e); showGate('login'); }
   })();
