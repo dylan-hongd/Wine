@@ -219,6 +219,16 @@
   #addbtn{background:var(--accent);color:#1a1208;font-weight:800;border:none;border-radius:10px;
     padding:10px 16px;font-size:.9rem;cursor:pointer;white-space:nowrap}
   #addbtn:hover{filter:brightness(1.12)}
+  #importbtn{background:transparent;color:var(--accent);font-weight:800;border:1px solid var(--accent);
+    border-radius:10px;padding:9px 14px;font-size:.9rem;cursor:pointer;white-space:nowrap}
+  #importbtn:hover{background:rgba(201,169,74,.12)}
+  .imp-prev{max-height:230px;overflow:auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;margin:12px 0;font-size:.82rem;color:var(--muted)}
+  .imp-prev .r{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  .imp-prev .r b{color:var(--ink)}
+  .imp-drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer}
+  .imp-drop:hover{border-color:var(--accent);color:var(--ink)}
+  .imp-note{font-size:.82rem;color:var(--dim);line-height:1.6}
   button.lnk{background:transparent;cursor:pointer;font-family:inherit}
   .drunkband{background:rgba(200,120,60,.13);border-left:3px solid #c8783c;border-radius:6px;
     padding:6px 10px;margin-bottom:12px;font-size:.8rem;color:#e6a86a;font-weight:700}
@@ -336,6 +346,7 @@
       <option value="sweet-desc">🍯 단맛 높은순</option>
     </select>
     <button id="addbtn" title="새 술 등록">＋ 등록</button>
+    <button id="importbtn" title="Vivino 데이터 가져오기">📥 Vivino 가져오기</button>
   </div>
 </div>
 
@@ -1274,6 +1285,149 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 등록 실패',e)); });
 }
 
+</script>
+<script>
+/* ===== Vivino 데이터 가져오기 ===== */
+(function(){
+  const btn=document.getElementById('importbtn');
+  if(btn) btn.onclick=openImport;
+
+  function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+  async function ensureJSZip(){
+    if(window.JSZip)return;
+    for(const u of ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js','https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js']){
+      try{ await loadScript(u); if(window.JSZip)return; }catch(e){}
+    }
+    throw new Error('압축 해제 도구(JSZip)를 불러오지 못했어요. csv 파일을 직접 올려주세요.');
+  }
+
+  // RFC4180 CSV 파서 (따옴표 안 쉼표·줄바꿈 지원)
+  function parseCSV(text){
+    const rows=[]; let row=[],f='',q=false;
+    text=text.replace(/^﻿/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    for(let i=0;i<text.length;i++){
+      const c=text[i];
+      if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+      else { if(c==='"')q=true; else if(c===','){row.push(f);f='';} else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';} else f+=c; }
+    }
+    if(f.length||row.length){row.push(f);rows.push(row);}
+    return rows;
+  }
+  function toObjects(rows){
+    if(!rows.length)return [];
+    const H=rows[0].map(h=>h.trim());
+    return rows.slice(1).filter(r=>r.some(x=>x&&x.trim())).map(r=>{const o={};H.forEach((h,i)=>o[h]=(r[i]||'').trim());return o;});
+  }
+  function mapType(vt){
+    const t=(vt||'').toLowerCase();
+    if(/spark|champagne|cava|prosecco|cr[eé]mant/.test(t))return 'sparkling';
+    if(/white/.test(t))return 'white';
+    if(/ros[eé]/.test(t))return 'white';
+    if(/sake|막걸리|청주|junmai|daiginjo/.test(t))return 'sake';
+    if(/whisk|spirit|brandy|cognac|rum|gin|vodka|tequila|위스키/.test(t))return 'spirit';
+    return 'red';
+  }
+  function rowToWine(r){
+    const winery=(r['Winery']||'').trim(), wname=(r['Wine name']||'').trim();
+    const region=[r['Region'],r['Country']].filter(Boolean).join(', ');
+    const avg=parseFloat(r['Average rating']); const yours=(r['Your rating']||'').trim();
+    const note=(r['Personal Note']||'').trim()||(r['Your review']||'').trim();
+    const ratings=['Vivino 가져오기']; if(yours) ratings.unshift('내 별점 ★'+yours);
+    const w={ type:mapType(r['Wine type']), name:wname||winery||'(이름 없음)', producer:winery||'—',
+      region:region||'—', vintage:(r['Vintage']||'').trim(), grape:'', qty:1, left:1, ratings, _added:true, source:'vivino' };
+    if(!isNaN(avg)) w.vivino=String(avg);
+    if(note) w.oneliner=note;
+    if((r['Drinking Window']||'').trim()) w.window=r['Drinking Window'].trim();
+    if((r['Label image']||'').trim()) w.img=r['Label image'].trim();
+    return w;
+  }
+  const wkey=(w)=>((w.producer||'')+'|'+(w.name||'')+'|'+(w.vintage||'')).toLowerCase();
+  function dedupWines(wines){
+    const cur=(typeof WINES!=='undefined'?WINES:[]);
+    const seen=new Set(cur.map(wkey));
+    const toImport=[]; let dup=0;
+    wines.forEach(w=>{const k=wkey(w); if(seen.has(k)){dup++;return;} seen.add(k); toImport.push(w);});
+    return {toImport, dup, total:wines.length};
+  }
+  function analyze(objs){ return dedupWines(objs.filter(o=>o['Wine name']||o['Winery']).map(rowToWine)); }
+
+  let modal=null, parsed=null;
+  function close(){ if(modal){modal.remove();modal=null;} }
+  function setBody(html){ if(modal) modal.querySelector('#imp-body').innerHTML=html; }
+
+  function openImport(){
+    if(!window._sb || !window.loadWines){ alert('로그인 후 이용할 수 있어요.'); return; }
+    close();
+    modal=document.createElement('div'); modal.className='cmpmodal';
+    modal.innerHTML=`<div class="cmpwrap" style="max-width:520px">
+      <button class="map-close" style="top:14px;right:16px;font-size:1.2rem">✕</button>
+      <h2 style="margin:0 0 6px;font-size:1.12rem">📥 Vivino 데이터 가져오기</h2>
+      <div class="imp-note">Vivino에서 받은 <b>내보내기 zip</b> 또는 그 안의 <b>full_wine_list.csv</b>를 올리면 내 셀러로 와인이 추가돼요.</div>
+      <div class="imp-drop" id="imp-drop" style="margin-top:14px">여기를 눌러 파일 선택<br><span style="font-size:.78rem">Vivino .zip · .csv · 분석 포함 .json</span></div>
+      <input id="imp-file" type="file" accept=".zip,.csv,.json" style="display:none">
+      <div id="imp-body"></div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    modal.querySelector('.map-close').onclick=close;
+    const fi=modal.querySelector('#imp-file');
+    modal.querySelector('#imp-drop').onclick=()=>fi.click();
+    fi.onchange=()=>{ if(fi.files[0]) handleFile(fi.files[0]); };
+  }
+
+  async function handleFile(file){
+    setBody(`<div class="imp-note" style="margin-top:14px">📂 «${esc(file.name)}» 읽는 중…</div>`);
+    try{
+      let res;
+      if(/\.json$/i.test(file.name)){
+        let arr; try{ arr=JSON.parse(await file.text()); }catch(e){ throw new Error('JSON을 읽지 못했어요.'); }
+        if(!Array.isArray(arr)) throw new Error('와인 목록(JSON 배열)이 아니에요.');
+        res=dedupWines(arr.filter(w=>w&&w.name));
+      } else {
+        let csvText='';
+        if(/\.zip$/i.test(file.name)){
+          await ensureJSZip();
+          const zip=await window.JSZip.loadAsync(file);
+          let entry=null;
+          zip.forEach((p,f)=>{ if(/full_wine_list\.csv$/i.test(p)) entry=f; });
+          if(!entry) zip.forEach((p,f)=>{ if(/cellar\.csv$/i.test(p)) entry=f; });
+          if(!entry) throw new Error('zip 안에서 full_wine_list.csv를 찾지 못했어요.');
+          csvText=await entry.async('string');
+        } else { csvText=await file.text(); }
+        res=analyze(toObjects(parseCSV(csvText)));
+      }
+      parsed=res;
+      if(!res.total){ setBody(`<div class="imp-note" style="margin-top:14px;color:#e8879b">와인 데이터를 찾지 못했어요. full_wine_list.csv가 맞는지 확인해 주세요.</div>`); return; }
+      if(!res.toImport.length){ setBody(`<div class="imp-note" style="margin-top:14px;color:#e0964a">${res.total}개 모두 이미 셀러에 있어요. 새로 가져올 게 없네요.</div>`); return; }
+      const prev=res.toImport.slice(0,8).map(w=>`<div class="r"><b>${esc(w.name)}</b> ${w.vintage?('· '+esc(w.vintage)):''} <span style="opacity:.65">${esc(w.producer)}</span></div>`).join('');
+      setBody(`
+        <div class="imp-note" style="margin-top:14px">총 <b>${res.total}</b>개 중 <b style="color:var(--accent)">${res.toImport.length}개</b>를 가져옵니다${res.dup?` (이미 있는 ${res.dup}개 제외)`:''}.</div>
+        <div class="imp-prev">${prev}${res.toImport.length>8?`<div class="r" style="opacity:.6">… 외 ${res.toImport.length-8}개</div>`:''}</div>
+        <div style="display:flex;gap:10px">
+          <button class="mbtn" id="imp-go" style="flex:1">${res.toImport.length}개 가져오기</button>
+          <button class="mbtn ghost" id="imp-cancel" style="flex:0 0 auto;padding:10px 16px">취소</button>
+        </div>`);
+      modal.querySelector('#imp-cancel').onclick=close;
+      modal.querySelector('#imp-go').onclick=doImport;
+    }catch(e){ console.error(e); setBody(`<div class="imp-note" style="margin-top:14px;color:#e8879b">읽기 실패: ${esc(e.message||String(e))}</div>`); }
+  }
+
+  async function doImport(){
+    const list=parsed&&parsed.toImport; if(!list||!list.length){close();return;}
+    const go=modal.querySelector('#imp-go'); if(go)go.disabled=true;
+    try{
+      const rows=list.map(w=>({data:w}));
+      for(let i=0;i<rows.length;i+=15){
+        const { error }=await window._sb.from('wines').insert(rows.slice(i,i+15));
+        if(error) throw error;
+        if(go) go.textContent=`가져오는 중… ${Math.min(i+15,rows.length)}/${rows.length}`;
+      }
+      await window.loadWines(); refreshAll();
+      setBody(`<div class="imp-note" style="margin-top:14px;color:#8bd7a0">✅ ${list.length}개를 셀러에 가져왔어요!</div>`);
+      setTimeout(close,1300);
+    }catch(e){ console.error(e); setBody(`<div class="imp-note" style="margin-top:14px;color:#e8879b">가져오기 실패: ${esc(e.message||String(e))}</div>`); }
+  }
+})();
 </script>
 </body>
 </html>
