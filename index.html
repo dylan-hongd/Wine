@@ -110,11 +110,11 @@
   .mapsec{margin:26px auto 4px}
   .map-title{font-size:1.05rem;font-weight:800;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
   .map-title span{font-size:.8rem;color:var(--dim);font-weight:500}
-  .mapbox{position:relative;background:#0c0a10;border:1px solid var(--line);
+  .mapbox{position:relative;isolation:isolate;background:#e9edf1;border:1px solid var(--line);
     border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
-  #map{width:100%;height:560px;background:#0c0a10}
+  #map{width:100%;height:560px;background:#e9edf1}
   @media(max-width:720px){#map{height:400px}}
-  .leaflet-container{font-family:inherit;background:#0c0a10}
+  .leaflet-container{font-family:inherit;background:#e9edf1}
   .leaflet-bar,.leaflet-bar a{background:#1a1720;color:var(--ink);border-color:var(--line)}
   .leaflet-control-attribution{background:rgba(12,10,16,.62)!important;color:#6b6478!important;font-size:10px}
   .leaflet-control-attribution a{color:#8a7f9c!important}
@@ -133,14 +133,14 @@
   @keyframes dotpulse{0%{transform:scale(.45);opacity:.95}100%{transform:scale(2.6);opacity:0}}
   /* 지도 점 (divIcon) */
   .wdot-ic{background:none;border:none}
-  .wdot-dot{display:block;width:12px;height:12px;border-radius:50%;
-    border:1.5px solid rgba(255,255,255,.85);box-shadow:0 0 3px rgba(0,0,0,.6);cursor:pointer;transition:filter .12s}
-  .leaflet-marker-icon.wdot-ic:hover .wdot-dot{filter:brightness(1.3) drop-shadow(0 0 4px rgba(255,255,255,.7))}
+  .wdot-dot{display:block;width:13px;height:13px;border-radius:50%;
+    border:2px solid #fff;box-shadow:0 0 0 1px rgba(28,20,40,.35), 0 1px 4px rgba(0,0,0,.45);cursor:pointer;transition:filter .12s}
+  .leaflet-marker-icon.wdot-ic:hover .wdot-dot{filter:brightness(1.15) saturate(1.2) drop-shadow(0 0 4px rgba(0,0,0,.5))}
   /* 클러스터 버블 (숫자) */
   .wcl-wrap{background:none}
   .wcl{display:flex;align-items:center;justify-content:center;border-radius:50%;
-    background:rgba(30,25,40,.92);border:2px solid var(--accent);color:#f4ead0;font-weight:800;
-    box-shadow:0 4px 16px rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+    background:rgba(26,20,34,.94);border:2px solid var(--accent);color:#fff;font-weight:800;
+    box-shadow:0 0 0 2px rgba(255,255,255,.65), 0 4px 14px rgba(0,0,0,.45)}
   .wcl small{font-size:.62em;opacity:.7;margin-left:1px}
   .marker-cluster,.leaflet-cluster-anim .leaflet-marker-icon{transition:transform .2s ease}
   .lgbtn{cursor:pointer;user-select:none;padding:3px 9px;border-radius:8px;border:1px solid transparent}
@@ -202,7 +202,7 @@
     background:#241e30;border:1px solid var(--accent);border-radius:999px;padding:9px 10px 9px 18px;
     display:flex;gap:12px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.55);font-size:.87rem;white-space:nowrap}
   .cmpbar .mbtn{flex:none;padding:7px 14px}
-  .cmpmodal{position:fixed;inset:0;z-index:70;background:rgba(10,8,14,.78);backdrop-filter:blur(4px);
+  .cmpmodal{position:fixed;inset:0;z-index:9000;background:rgba(10,8,14,.78);backdrop-filter:blur(4px);
     display:flex;align-items:center;justify-content:center;padding:18px}
   .cmpwrap{background:var(--panel2);border:1px solid var(--line);border-radius:16px;max-width:1150px;
     width:100%;max-height:90vh;overflow:auto;padding:22px;position:relative}
@@ -1028,7 +1028,7 @@ function ensureCluster(){
     if(typeof L==='undefined')throw new Error('Leaflet 라이브러리 로드 실패');
     map=L.map('map',{center:[25,8],zoom:2,zoomControl:false,worldCopyJump:true,minZoom:2,maxZoom:12,zoomSnap:.25,wheelPxPerZoomLevel:90});
     let tileErr=0, fellBack=false;
-    const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       {subdomains:'abcd',maxZoom:20,detectRetina:true,attribution:'© OpenStreetMap · © CARTO'});
     carto.on('tileerror',()=>{ if(fellBack)return; if(++tileErr>=3){fellBack=true;
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);} });
