@@ -229,6 +229,31 @@
   .imp-drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer}
   .imp-drop:hover{border-color:var(--accent);color:var(--ink)}
   .imp-note{font-size:.82rem;color:var(--dim);line-height:1.6}
+  #recbtn{background:linear-gradient(135deg,#c9a94a,#e0c46b);color:#1a1208;font-weight:800;border:none;
+    border-radius:10px;padding:9px 15px;font-size:.9rem;cursor:pointer;white-space:nowrap}
+  #recbtn:hover{filter:brightness(1.08)}
+  .rec-note{font-size:.85rem;color:var(--muted);line-height:1.6;margin:2px 0 14px}
+  .rec-f{margin-bottom:11px}
+  .rec-f>label{display:block;font-size:.76rem;color:var(--dim);font-weight:700;margin-bottom:6px}
+  .rec-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .rec-chip{padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);
+    color:var(--muted);font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap}
+  .rec-chip:hover{border-color:var(--accent)}
+  .rec-chip.on{background:var(--accent);color:#1a1208;border-color:var(--accent);font-weight:800}
+  #rec-go{width:100%;margin-top:6px}
+  #rec-results{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .rec-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:6px}
+  .rec-card h4{font-size:.95rem;font-weight:800;line-height:1.3;margin:0}
+  .rec-card .rc-sub{font-size:.78rem;color:var(--muted)}
+  .rec-card .rc-meta{font-size:.76rem;color:var(--dim);display:flex;flex-wrap:wrap;gap:5px 10px}
+  .rec-card .rc-note{font-size:.8rem;color:#d9cfe6;line-height:1.5}
+  .rec-why{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+  .rec-why span{font-size:.7rem;background:rgba(201,169,74,.14);color:#e6d49a;border-radius:6px;padding:2px 7px}
+  .rc-actions{display:flex;gap:7px;margin-top:6px}
+  .rc-add{flex:1;background:var(--accent);color:#1a1208;font-weight:800;border:none;border-radius:8px;padding:8px;font-size:.8rem;cursor:pointer}
+  .rc-add:disabled{background:rgba(139,215,160,.2);color:#8bd7a0;cursor:default}
+  .rc-lnk{font-size:.74rem;color:var(--accent);border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-decoration:none;white-space:nowrap}
+  .rec-empty{grid-column:1/-1;text-align:center;color:var(--dim);padding:24px;font-size:.86rem}
   button.lnk{background:transparent;cursor:pointer;font-family:inherit}
   .drunkband{background:rgba(200,120,60,.13);border-left:3px solid #c8783c;border-radius:6px;
     padding:6px 10px;margin-bottom:12px;font-size:.8rem;color:#e6a86a;font-weight:700}
@@ -347,6 +372,7 @@
     </select>
     <button id="addbtn" title="새 술 등록">＋ 등록</button>
     <button id="importbtn" title="Vivino 데이터 가져오기">📥 Vivino 가져오기</button>
+    <button id="recbtn" title="와인 추천 받기">✨ 추천</button>
   </div>
 </div>
 
@@ -1426,6 +1452,163 @@ if('serviceWorker' in navigator){
       setBody(`<div class="imp-note" style="margin-top:14px;color:#8bd7a0">✅ ${list.length}개를 셀러에 가져왔어요!</div>`);
       setTimeout(close,1300);
     }catch(e){ console.error(e); setBody(`<div class="imp-note" style="margin-top:14px;color:#e8879b">가져오기 실패: ${esc(e.message||String(e))}</div>`); }
+  }
+})();
+</script>
+<script>
+/* ===== 와인 추천 (내장 카탈로그 + 규칙 기반, 외부 API/AI 없음) ===== */
+(function(){
+  const btn=document.getElementById('recbtn'); if(btn) btn.onclick=openRec;
+  let CAT=null, modal=null, sel={theme:'',price:'',country:'',grape:'',type:''};
+
+  const GRAPES=['카베르네 소비뇽','메를로','카베르네 프랑','피노 누아','시라','쉬라즈','네비올로','산지오베제','템프라니요','말벡','그르나슈','진판델','카르메네르','샤르도네','소비뇽 블랑','리슬링','비오니에','슈냉 블랑','피노 그리','게뷔르츠트라미너','가메'];
+  const canon=(g)=> g.replace('쉬라즈','시라');
+  const CKEYS=[
+    ['프랑스',/France|프랑스|Bordeaux|Bourgogne|Burgundy|Champagne|Rh[oô]ne|Loire|Alsace|Saint-|M[ée]doc|Pomerol|Beaujolais|Chablis|Givry|Rully|Meursault|Pommard|보르도|부르고뉴|샹파뉴|론|루아르|알자스/i],
+    ['이탈리아',/Italy|이탈리아|Toscana|Tuscany|Piedmont|Piemonte|Barolo|Barbaresco|Chianti|Brunello|Veneto|Amarone|Langhe|Puglia|Sicil|Maremma|Montalcino|Manduria|토스카나|피에몬테|바롤로|베네토/i],
+    ['미국',/United States|USA|미국|California|Napa|Sonoma|Oregon|Washington|Paso|Willamette|Coombsville|Arroyo|캘리포니아|나파|소노마|오리건/i],
+    ['스페인',/Spain|스페인|Rioja|Ribera|Priorat|Montsant|Rueda|리오하|리베라|프리오라트/i],
+    ['칠레',/Chile|칠레|Maipo|Colchagua|Aconcagua|Casablanca|Maule|Rapel|Central Valley|마이포|콜차구아/i],
+    ['아르헨티나',/Argentina|아르헨티나|Mendoza|멘도사/i],
+    ['호주',/Australia|호주|Barossa|McLaren|Coonawarra|바로사/i],
+    ['뉴질랜드',/New Zealand|뉴질랜드|Marlborough|Otago|말보로/i],
+    ['독일',/Germany|독일|Mosel|Rheingau|Rheinhessen|모젤|라인/i],
+    ['포르투갈',/Portugal|포르투갈|Douro|도우루/i],
+    ['남아공',/South Africa|남아공|Stellenbosch|스텔렌보스/i]
+  ];
+  function countryOf(t){ t=t||''; for(const [c,re] of CKEYS) if(re.test(t)) return c; return null; }
+
+  function buildProfile(){
+    const P={grape:{},country:{},type:{},body:[],tannin:[],acid:[],n:0};
+    (typeof WINES!=='undefined'?WINES:[]).forEach(w=>{
+      P.n++;
+      GRAPES.forEach(g=>{ if((w.grape||'').includes(g)||(w.name||'').includes(g)){const k=canon(g);P.grape[k]=(P.grape[k]||0)+1;} });
+      const c=countryOf((w.region||'')+' '+(w.name||'')); if(c)P.country[c]=(P.country[c]||0)+1;
+      if(w.type)P.type[w.type]=(P.type[w.type]||0)+1;
+      const b=bodyScore(w),t=tanninScore(w),a=acidScore(w);
+      if(b)P.body.push(b); if(t)P.tannin.push(t); if(a)P.acid.push(a);
+    });
+    const avg=arr=>arr.length?arr.reduce((x,y)=>x+y,0)/arr.length:null;
+    P.bodyA=avg(P.body); P.tanA=avg(P.tannin); P.acidA=avg(P.acid);
+    return P;
+  }
+  function haveKey(){ const s=new Set(); (typeof WINES!=='undefined'?WINES:[]).forEach(w=>{s.add(((w.producer||'')+'|'+(w.name||'')).toLowerCase()); s.add((w.name||'').toLowerCase());}); return s; }
+
+  function scoreOf(c,P){
+    let s=(c.rating-3.6)*2, why=[];
+    let g=0, gm=[];
+    c.grapes.forEach(gr=>{ const k=canon(gr); if(P.grape[k]){g+=P.grape[k]; if(gm.length<2)gm.push(gr);} });
+    if(g){ s+=Math.min(6,g*1.5); why.push('선호 품종 '+gm.join('·')); }
+    if(P.country[c.country]){ s+=Math.min(3,P.country[c.country]*0.8); why.push(c.country+' 취향'); }
+    if(P.type[c.type]) s+=Math.min(2,P.type[c.type]*0.3);
+    if(P.bodyA!=null){ const d=Math.abs(P.bodyA-c.body); s+=(1.5-d); if(d<0.6&&why.length<3)why.push('비슷한 바디'); }
+    if(P.tanA!=null&&c.type==='red') s+=(1-Math.abs(P.tanA-c.tannin))*0.7;
+    if(P.acidA!=null) s+=(1-Math.abs(P.acidA-c.acid))*0.5;
+    return {s,why};
+  }
+
+  function recommend(){
+    const P=buildProfile(), have=haveKey();
+    let cands=CAT.filter(c=>!have.has(((c.producer||'')+'|'+(c.name||'')).toLowerCase()) && !have.has((c.name||'').toLowerCase()));
+    if(sel.theme) cands=cands.filter(c=>(c.themes||[]).includes(sel.theme));
+    if(sel.price) cands=cands.filter(c=>String(c.priceBand)===String(sel.price));
+    if(sel.country) cands=cands.filter(c=>c.country===sel.country);
+    if(sel.type) cands=cands.filter(c=>c.type===sel.type);
+    if(sel.grape) cands=cands.filter(c=>(c.grapes||[]).some(g=>canon(g)===sel.grape)|| (c.grape||'').includes(sel.grape));
+    const scored=cands.map(c=>{const r=scoreOf(c,P); return {c,s:r.s,why:r.why};});
+    scored.sort((a,b)=> b.s-a.s || b.c.rating-a.c.rating);
+    return scored.slice(0,15);
+  }
+
+  function stars(r){ const f=Math.round(r*2)/2; return '★'.repeat(Math.floor(f))+(f%1?'½':'')+' '+r.toFixed(1); }
+  function catToWine(c){ return {type:c.type,name:c.name,producer:c.producer,region:c.region,grape:c.grape,
+    struct:c.struct,aroma:c.aroma,temp:c.temp,pairing:c.pairing,window:c.window,oneliner:c.note,
+    vivino:String(c.rating),price:c.price,qty:1,left:1,ratings:['✨ 추천'],_added:true,source:'추천'}; }
+
+  function renderResults(){
+    const box=modal.querySelector('#rec-results');
+    const list=recommend();
+    if(!list.length){ box.innerHTML='<div class="rec-empty">조건에 맞는 추천이 없어요. 필터를 줄여보세요.</div>'; return; }
+    box.innerHTML=list.map(({c,why})=>{
+      const lq=encodeURIComponent(c.producer+' '+c.name);
+      return `<div class="rec-card" data-key="${esc((c.producer+'|'+c.name).toLowerCase())}">
+        <span class="badge t-${c.type}" style="align-self:flex-start">${TYPE_LABEL[c.type]||''}</span>
+        <h4>${esc(c.name)}</h4>
+        <div class="rc-sub">${esc(c.producer)} · ${esc(c.region)}</div>
+        <div class="rc-meta"><span>🍇 ${esc(c.grape||(c.grapes||[]).join(', '))}</span></div>
+        <div class="rc-meta"><span>💰 ${esc(c.price||'—')}</span><span>⭐ ${stars(c.rating)}</span></div>
+        <div class="rc-note">${esc(c.note||'')}</div>
+        ${why.length?`<div class="rec-why">${why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`:''}
+        <div class="rc-actions">
+          <button class="rc-add">＋ 내 셀러에 추가</button>
+          <a class="rc-lnk" target="_blank" rel="noopener" href="https://www.vivino.com/search/wines?q=${lq}">Vivino ↗</a>
+        </div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.rec-card').forEach(card=>{
+      const key=card.dataset.key;
+      const c=CAT.find(x=>((x.producer+'|'+x.name).toLowerCase())===key);
+      const ab=card.querySelector('.rc-add');
+      ab.onclick=async()=>{
+        if(!window.dbInsertWine){alert('로그인 후 이용할 수 있어요.');return;}
+        ab.disabled=true; ab.textContent='추가 중…';
+        const w=catToWine(c);
+        const id=await window.dbInsertWine(w);
+        if(id){ if(typeof WINES!=='undefined')WINES.push(w); try{refreshAll();}catch(e){}
+          ab.textContent='✓ 셀러에 추가됨'; }
+        else { ab.disabled=false; ab.textContent='＋ 내 셀러에 추가'; }
+      };
+    });
+  }
+
+  function chipRow(k, opts){ // opts: [[value,label],...]
+    return `<div class="rec-chips" data-k="${k}">`+opts.map(([v,l])=>`<span class="rec-chip" data-v="${esc(String(v))}">${esc(l)}</span>`).join('')+`</div>`;
+  }
+  function wireChips(){
+    modal.querySelectorAll('.rec-chips').forEach(row=>{
+      const k=row.dataset.k;
+      row.querySelectorAll('.rec-chip').forEach(ch=>{
+        ch.onclick=()=>{
+          const on=ch.classList.contains('on');
+          row.querySelectorAll('.rec-chip').forEach(x=>x.classList.remove('on'));
+          if(!on){ ch.classList.add('on'); sel[k]=ch.dataset.v; } else { sel[k]=''; }
+        };
+      });
+    });
+  }
+
+  async function openRec(){
+    if(!window._sb){ alert('로그인 후 이용할 수 있어요.'); return; }
+    if(!CAT){ try{ CAT=await (await fetch('wine_catalog.json')).json(); }catch(e){ alert('추천 데이터를 불러오지 못했어요.'); return; } }
+    sel={theme:'',price:'',country:'',grape:'',type:''};
+    // 카탈로그에서 옵션 생성
+    const themeCount={}; CAT.forEach(c=>(c.themes||[]).forEach(t=>themeCount[t]=(themeCount[t]||0)+1));
+    const themes=Object.keys(themeCount).sort((a,b)=>themeCount[b]-themeCount[a]).slice(0,12).map(t=>[t,t]);
+    const countries=[...new Set(CAT.map(c=>c.country))].map(c=>[c,c]);
+    const grapesIn=GRAPES.filter(g=>CAT.some(c=>(c.grapes||[]).some(x=>canon(x)===canon(g)))).map(g=>[canon(g),g]);
+    const prices=[[1,'~2만'],[2,'2~5만'],[3,'5~10만'],[4,'10~25만'],[5,'25만+']];
+    const types=[['red','레드'],['white','화이트'],['sparkling','스파클링']];
+    modal=document.createElement('div'); modal.className='cmpmodal';
+    modal.innerHTML=`<div class="cmpwrap" style="max-width:860px">
+      <button class="map-close" style="top:14px;right:16px;font-size:1.2rem">✕</button>
+      <h2 style="margin:0 0 6px;font-size:1.15rem">✨ 와인 추천</h2>
+      <div class="rec-note">내 셀러·마신 기록을 바탕으로 <b>셀러에 없는 새 와인</b>을 추천해요. 필터를 고르면 그 조건에 맞춰 좁혀줍니다. (각 필터는 한 번 더 누르면 해제)</div>
+      <div class="rec-filters">
+        <div class="rec-f"><label>테마</label>${chipRow('theme',themes)}</div>
+        <div class="rec-f"><label>가격대</label>${chipRow('price',prices)}</div>
+        <div class="rec-f"><label>산지</label>${chipRow('country',countries)}</div>
+        <div class="rec-f"><label>품종</label>${chipRow('grape',grapesIn)}</div>
+        <div class="rec-f"><label>종류</label>${chipRow('type',types)}</div>
+      </div>
+      <button class="mbtn" id="rec-go">✨ 추천 받기</button>
+      <div id="rec-results"></div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+    modal.querySelector('.map-close').onclick=()=>modal.remove();
+    wireChips();
+    modal.querySelector('#rec-go').onclick=renderResults;
+    renderResults(); // 처음엔 취향 기반 추천 바로 표시
   }
 })();
 </script>
