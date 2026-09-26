@@ -2,8 +2,8 @@
    - HTML(문서)은 '네트워크 우선' → 새로 배포하면 항상 최신이 뜨고, 오프라인일 때만 캐시 사용.
    - 지도 라이브러리(Leaflet / markercluster CDN)는 '캐시 우선' → 한 번 받으면 이후엔 CDN이 흔들려도 안정적으로 로드.
    - Supabase API / 지도 타일 등은 항상 네트워크로 통과. */
-const CACHE = 'cellar-shell-v3';
-const LIB   = 'cellar-lib-v3';
+const CACHE = 'cellar-shell-v4';
+const LIB   = 'cellar-lib-v4';
 const SHELL = [
   './', './index.html', './config.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-512-maskable.png', './apple-touch-icon.png'
