@@ -1091,11 +1091,11 @@ function ensureCluster(){
     if(typeof L==='undefined')throw new Error('Leaflet 라이브러리 로드 실패');
     map=L.map('map',{center:[25,8],zoom:2,zoomControl:false,worldCopyJump:true,minZoom:2,maxZoom:12,zoomSnap:.25,wheelPxPerZoomLevel:90});
     let tileErr=0, fellBack=false;
-    const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      {subdomains:'abcd',maxZoom:20,detectRetina:true,attribution:'© OpenStreetMap · © CARTO'});
-    carto.on('tileerror',()=>{ if(fellBack)return; if(++tileErr>=3){fellBack=true;
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);} });
-    carto.addTo(map);
+    // CARTO 베이스맵은 키 없는 요청에 'API KEY REQUIRED' 이미지를 200으로 돌려줘 오류 감지가 안 됨 → 키 불필요한 OSM 사용
+    const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
+    osm.on('tileerror',()=>{ if(fellBack)return; if(++tileErr>=3){fellBack=true;
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'}).addTo(map);} });
+    osm.addTo(map);
     map.attributionControl.setPrefix(false);
     lineLayer=L.layerGroup().addTo(map); markLayer=L.layerGroup().addTo(map);
     const aa=activeAnchors();
