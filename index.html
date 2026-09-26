@@ -549,7 +549,7 @@ const RATE=[
 ["Vaso by Dana",null,{vivino:"4.3"}], ["Onda by Dana",null,{vivino:"4.6"}],
 ["Vint Buttery",null,{vivino:"4.0"}], ["Robert Mondavi",null,{vivino:"4.2"}],
 ["Silver Oak Cabernet Sauvignon, Napa",null,{vivino:"4.5"}], ["Alexander Valley",null,{vivino:"4.4"}],
-["Post & Beam",null,{vivino:"4.2"}], ["Philip",null,{vivino:"4.1"}], ["Tator",null,{vivino:"4.1"}],
+["Post & Beam",null,{vivino:"4.2"}], ['"Philip"',null,{vivino:"4.1"}], ["Tator",null,{vivino:"4.1"}],
 ["Damilano",null,{vivino:"4.2"}], ["Franco Pacenti",null,{vivino:"4.2"}], ["Talò",null,{vivino:"4.1"}],
 ["La Superbe",null,{vivino:"3.8"}], ["Bourgogne Pinot Noir",null,{vivino:"4.0"}], ["Vosne-Romanée",null,{vivino:"4.1"}],
 ["Far Niente",null,{vivino:"4.2",ws:"92"}], ["Rombauer",null,{vivino:"4.2",ws:"91"}],
@@ -565,6 +565,7 @@ const RATE=[
 ["Hébrart",null,{vivino:"4.2"}], ["Dinvaut",null,{vivino:"4.1"}], ["Crémant d'Alsace",null,{vivino:"3.8"}]
 ];
 function _enrichRate(){ WINES.forEach(w=>{
+  if(w._added)return; // 직접 추가·가져온 와인은 자체 평점 유지
   const hit=RATE.find(r=>w.name.includes(r[0])&&(!r[1]||String(w.vintage||'').includes(r[1])));
   if(hit)Object.assign(w,hit[2]);
 }); }
@@ -687,7 +688,8 @@ const REGION_OPTS=[
  ["veneto","이탈리아 · 베네토"],["puglia","이탈리아 · 풀리아"],["sicily","이탈리아 · 시칠리아"],
  ["rioja","스페인 · 리오하"],["mosel","독일 · 모젤"],["rheinhessen","독일 · 라인헤센"],
  ["marlborough","뉴질랜드 · 말보로"],["canterbury","뉴질랜드 · 캔터베리"],["barossa","호주 · 바로사"],["clare","호주 · 클레어 밸리"],
- ["mendoza","아르헨티나 · 멘도사"],["casablanca","칠레"],
+ ["mendoza","아르헨티나 · 멘도사"],["casablanca","칠레"],["colchagua","칠레 · 콜차과"],["maipo","칠레 · 마이포"],["aconcagua","칠레 · 아콩카과"],["maule","칠레 · 마울레"],["rapel","칠레 · 라펠"],
+ ["mclaren","호주 · 맥라렌 베일"],["paso","미국 · 파소 로블스"],["monterey","미국 · 몬테레이"],["languedoc","프랑스 · 랑그독"],["montsant","스페인 · 몬산트"],
  ["speyside","스코틀랜드 · 스페이사이드"],["highland","스코틀랜드 · 하이랜드"],["islay","스코틀랜드 · 아일라"],["lowland","스코틀랜드 · 로우랜드"],
  ["osaka","일본 · 오사카"],["niigata","일본 · 니가타"],["shizuoka","일본 · 시즈오카"],["yamaguchi","일본 · 야마구치"],
  ["yilan","대만"],["jalisco","멕시코"]
@@ -758,7 +760,9 @@ const ANCHORS={
  bordeaux:[44.85,-0.58], loire:[47.30,0.70], rhone:[44.93,4.85], mosel:[49.90,6.95], rioja:[42.40,-2.50],
  tuscany:[43.40,11.30], veneto:[45.45,11.40], sicily:[37.55,14.10], mendoza:[-32.90,-68.85],
  casablanca:[-33.32,-71.41], barossa:[-34.55,138.95], clare:[-33.83,138.61], oregon:[45.20,-123.05], washington:[46.30,-119.30],
- kentucky:[37.80,-85.47], islay:[55.75,-6.20]
+ kentucky:[37.80,-85.47], islay:[55.75,-6.20],
+ mclaren:[-35.22,138.54], paso:[35.63,-120.69], monterey:[36.35,-121.35], languedoc:[43.60,3.35], montsant:[41.22,0.85],
+ colchagua:[-34.65,-71.25], maipo:[-33.65,-70.65], aconcagua:[-32.83,-70.65], maule:[-35.55,-71.65], rapel:[-34.20,-71.10]
 };
 
 // 품종·캐스크 기원 정의
@@ -781,6 +785,10 @@ const VAR_DEFS={
  pb:{n:"피노 블랑·오세루아",pts:[[48.16,7.30,"알자스"]],note:"알자스 크레망의 기본 품종."},
  ym:{n:"야마다니시키(주조미)",pts:[[34.90,134.97,"일본 효고현"]],note:"'주조호적미의 왕' — 효고현이 원산이자 최고 산지."},
  gh:{n:"고햐쿠만고쿠(주조미)",pts:[[37.50,138.90,"일본 니가타현"]],note:"니가타 담려신구(깔끔·드라이) 스타일의 기반이 되는 쌀."},
+ cm:{n:"카르메네르",pts:[[44.90,-0.40,"프랑스 보르도(원산)"]],note:"보르도 원산이나 필록세라 이후 사라졌다가 1994년 칠레에서 메를로로 오인돼 자라던 것이 재발견됨 — 오늘날 칠레의 상징 품종."},
+ tp:{n:"템프라니요",pts:[[42.40,-2.50,"스페인 리오하"]],note:"스페인 대표 품종 — 이름은 '이르다(temprano)'에서 유래한 조생종."},
+ gr:{n:"그르나슈(가르나차)",pts:[[41.65,-0.90,"스페인 아라곤(기원)"]],note:"스페인 아라곤 기원으로 남부 론·샤토뇌프 뒤 파프 블렌드의 중심 품종."},
+ vg:{n:"비오니에",pts:[[45.40,4.77,"북부 론 콩드리외"]],note:"한때 멸종 직전까지 갔던 콩드리외의 품종 — 살구·복숭아·꽃 향이 화사함."},
  ck_mad:{n:"마데이라 캐스크",pts:[[32.75,-16.97,"포르투갈 마데이라섬"]],note:"대서양 화산섬의 주정강화 와인을 담았던 통 — 캐러멜·건과일 뉘앙스를 입힘."},
  ck_jz:{n:"셰리 캐스크",pts:[[36.68,-6.14,"스페인 헤레스"]],note:"올로로소·모스카텔·팔로 코르타도 등 셰리를 담았던 통 — 건포도·견과 풍미의 원천."},
  ck_pt:{n:"포트 캐스크",pts:[[41.16,-7.79,"포르투갈 도우루"]],note:"포트와인 통 — 검붉은 과실과 진한 단맛을 입힘."},
@@ -799,7 +807,7 @@ const GEO=[
 ["Silver Oak Cabernet Sauvignon, Napa",{rg:"napa",vars:["cs","me"]}],
 ["Alexander Valley",{rg:"sonoma",vars:["cs"]}],
 ["Post & Beam",{rg:"napa",vars:["cs","me"]}],
-["Philip",{rg:"maremma",vars:["cs"],terroir:"토스카나 마렘마(벨과르도) — 해풍이 드는 해안 구릉지의 카베르네."}],
+['"Philip"',{rg:"maremma",vars:["cs"],terroir:"토스카나 마렘마(벨과르도) — 해풍이 드는 해안 구릉지의 카베르네."}],
 ["Tator",{rg:"puglia",vars:["pr"]}],
 ["Damilano",{rg:"piedmont",vars:["nb"],terroir:"바롤로 'Liste' 단일 크뤼(라 모라 인근) — 석회질 이회토가 주는 견고한 구조."}],
 ["Franco Pacenti",{rg:"montalcino",vars:["sg"],terroir:"몬탈치노 북사면 카날리키오 구역 — 서늘한 사면이 주는 신선함과 우아함."}],
@@ -846,6 +854,7 @@ const GEO=[
 ];
 function _enrichGeo(){ let geoMiss=0;
 WINES.forEach(w=>{
+  if(w._added&&w.rg)return; // 자체 산지 정보가 있는 추가 와인은 덮어쓰지 않음
   const hit=GEO.find(g=>w.name.includes(g[0]));
   if(hit){w.rg=hit[1].rg;w.vars=hit[1].vars||[];if(hit[1].terroir)w.terroir=hit[1].terroir;}
   else if(!w.rg)geoMiss++;
